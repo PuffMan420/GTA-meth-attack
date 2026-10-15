@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -11,18 +11,18 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="game" width="320" height="180" aria-label="Spelyta"></canvas>
+  <canvas id="game" width="320" height="180" aria-label="Playfield"></canvas>
 
   <div id="hud" hidden>
     <div id="hp-row">
-      <div id="hp-track" aria-label="Hälsa">
+      <div id="hp-track" aria-label="Health">
         <div id="hp-fill"></div>
         <span id="hp-text">100/100</span>
       </div>
       <div id="timer">00:00</div>
-      <div id="level">NV 1</div>
+      <div id="level">LV 1</div>
     </div>
-    <div id="xp-track" aria-label="Erfarenhet">
+    <div id="xp-track" aria-label="Experience">
       <div id="xp-fill"></div>
     </div>
     <div id="meta-row">
@@ -30,46 +30,46 @@
       <div id="weapon-icons"></div>
     </div>
     <div id="bossbar" hidden>
-      <span id="boss-label">Kingpin Bosse</span>
+      <span id="boss-label">Kingpin Buster</span>
       <div id="boss-track"><div id="boss-fill"></div></div>
     </div>
-    <p id="hint" hidden>Rör på dig — vapnen skjuter själva</p>
+    <p id="hint" hidden>Move — the guns shoot for you</p>
   </div>
 
-  <button id="mute" type="button" aria-pressed="false">Ljud på</button>
+  <button id="mute" type="button" aria-pressed="false">Sound on</button>
 
   <div id="joystick" hidden aria-hidden="true">
     <div id="knob"></div>
   </div>
 
-  <div id="banner" hidden>KINGPIN BOSSE ÄR I STAN</div>
+  <div id="banner" hidden>KINGPIN BUSTER IS IN TOWN</div>
 
   <div id="overlay">
     <section id="title-screen">
-      <p class="eyebrow">Tecknad parodi · inget på riktigt</p>
+      <p class="eyebrow">Cartoon parody · nothing here is real</p>
       <h1>GTA METH ATTACK</h1>
-      <p class="tag">GTA uppifrån möter vågor av fiender. Du går. Vapnen skjuter själva.</p>
+      <p class="tag">Top-down GTA meets enemy waves. You walk. The guns shoot themselves.</p>
       <ul>
-        <li><b>Dator:</b> WASD eller piltangenterna</li>
-        <li><b>Telefon:</b> dra i spaken nere till vänster</li>
-        <li>Plocka glitter (XP) och välj <b>1 av 3</b> kort när du levlar</li>
+        <li><b>Keyboard:</b> WASD or the arrow keys</li>
+        <li><b>Phone:</b> drag the stick in the bottom left</li>
+        <li>Grab glitter (XP) and pick <b>1 of 3</b> cards when you level up</li>
       </ul>
-      <button id="start-btn" type="button">KÖR</button>
+      <button id="start-btn" type="button">GO</button>
     </section>
 
     <section id="level-screen" hidden>
-      <p class="eyebrow">Välj ett kort</p>
-      <h2>NIVÅ <span id="lv-num">2</span></h2>
+      <p class="eyebrow">Pick a card</p>
+      <h2>LEVEL <span id="lv-num">2</span></h2>
       <div id="cards"></div>
-      <p class="fine">Tangent 1, 2 eller 3 funkar också.</p>
+      <p class="fine">Keys 1, 2, or 3 work too.</p>
     </section>
 
     <section id="dead-screen" hidden>
-      <p class="eyebrow">Spel över</p>
-      <h2>SLUTKÖRT</h2>
+      <p class="eyebrow">Game over</p>
+      <h2>WIPED OUT</h2>
       <div id="dead-stats"></div>
-      <p class="fine">Spring runt kvarteren. Stå inte still i klungan.</p>
-      <button id="retry-btn" type="button">KÖR IGEN</button>
+      <p class="fine">Keep circling the block. Standing in the crowd is a bad plan.</p>
+      <button id="retry-btn" type="button">AGAIN</button>
     </section>
   </div>
 
