@@ -1302,27 +1302,36 @@
 
   function makeTreeSprite() {
     const c = document.createElement('canvas');
-    c.width = 48;
-    c.height = 48;
+    c.width = 42;
+    c.height = 54;
     const g = c.getContext('2d');
-    g.fillStyle = '#1a3014';
+    g.fillStyle = '#1c3816';
     g.beginPath();
-    g.arc(26, 28, 16, 0, Math.PI * 2);
+    g.arc(24, 22, 14, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#2c5a24';
+    g.fillStyle = '#2f5c28';
     g.beginPath();
-    g.arc(22, 22, 16, 0, Math.PI * 2);
+    g.arc(17, 16, 13, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#3d7432';
+    g.fillStyle = '#3f7434';
     g.beginPath();
-    g.arc(18, 18, 8, 0, Math.PI * 2);
+    g.arc(14, 13, 7, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#5a3a22';
-    g.fillRect(22, 34, 4, 8);
-    g.fillStyle = '#3a2818';
-    g.fillRect(22, 40, 5, 3);
+    g.fillStyle = '#254a20';
+    g.beginPath();
+    g.arc(26, 18, 6, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#5a3820';
+    g.fillRect(18, 26, 6, 24);
+    g.fillStyle = '#7a5434';
+    g.fillRect(18, 26, 2, 22);
+    g.fillStyle = '#3a2414';
+    g.fillRect(14, 47, 14, 6);
+    g.fillRect(16, 45, 4, 3);
+    g.fillRect(22, 46, 3, 2);
     const hi = presentSprite(c);
-    dressTree(hi);
+    hi.worldW = c.width;
+    hi.worldH = c.height;
     return hi;
   }
 
@@ -1478,13 +1487,19 @@
           const seed = hash(bx + 9, by + 4);
           const built = makeBuildingSprite(fw, fh, pal, seed);
           const left = x0 - built.eaves;
-          const sortY = y0 + fh;
+          const wallH = 42;
+          const sortY = y0 - 10;
+          for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
+            for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
+              if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
+            }
+          }
           const lights = [];
           for (let i = 0; i < built.lights.length; i++) {
             const L = built.lights[i];
             lights.push({
               x: left + L.x,
-              y: sortY - (built.canvas.worldH || built.canvas.height) + L.y,
+              y: y0 + fh - (built.canvas.worldH || built.canvas.height) + L.y,
               r: i === built.lights.length - 1 ? 44 : 28,
               color: i === built.lights.length - 1 ? NEONS[seed % NEONS.length] : pal.win,
             });
@@ -1499,7 +1514,7 @@
             shadowH: 12,
             lights: lights,
             neon: built.neon,
-            wallDrop: built.wallDrop || 58,
+            wallDrop: wallH,
             sideDepth: built.sideDepth || 18,
             kind: 'build',
             roof: built.roof || null,
@@ -1510,8 +1525,8 @@
             fw: fw,
             fh: fh,
           });
-          addLamp(x0 - 14, sortY + 6);
-          addLamp(x0 + fw + 2, sortY + 6);
+          addLamp(x0 - 14, y0 + fh + 6);
+          addLamp(x0 + fw + 2, y0 + fh + 6);
         } else if (kind === 0) {
           props.push({
             img: fountainSprite,
@@ -1540,8 +1555,8 @@
             h: treeSprite.worldH || treeSprite.height,
             x: px + TILE / 2 - (treeSprite.worldW || treeSprite.width) / 2,
             sortY: py + TILE - 1,
-            shadowW: 46,
-            shadowH: 16,
+            shadowW: 34,
+            shadowH: 12,
             lights: [],
             kind: 'tree',
           });
@@ -1564,8 +1579,9 @@
           const img = vehicleSprite(model, color);
           let ang = horiz ? 0 : Math.PI / 2;
           if (hash(ty, tx) & 1) ang += Math.PI;
-          const carW = img.worldW || 36;
-          const carH = img.worldH || 72;
+          const carScale = 0.84;
+          const carW = (img.worldW || 36) * carScale;
+          const carH = (img.worldH || 72) * carScale;
           props.push({
             img: img,
             model: model,
@@ -3083,14 +3099,11 @@
       drawBlock(pr);
       return;
     }
-    const lift = propLift(pr.sortY);
+    const lift = pr.kind === 'tree' ? 0 : propLift(pr.sortY);
     const pw = pr.w || pr.img.width;
     const ph = pr.h || pr.img.height;
-    let x = Math.round(pr.x - cam.x);
+    const x = Math.round(pr.x - cam.x);
     const y = Math.round(pr.sortY - cam.y - ph + lift);
-    if (pr.kind === 'tree' && quality !== 'low' && !reduceMotion) {
-      x += Math.round(Math.sin(globalTime * 1.5 + pr.x * 0.02) * 1.4);
-    }
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(pr.img, x, y, pw, ph);
     if (pr.kind === 'lamp') {
@@ -3382,8 +3395,8 @@
         phase: i * 1.7,
         model: model,
         img: img,
-        spriteW: img.worldW || 36,
-        spriteH: img.worldH || 72,
+        spriteW: (img.worldW || 36) * 0.84,
+        spriteH: (img.worldH || 72) * 0.84,
         radius: 14,
         vel: 46 + (i % 4) * 6,
         cruise: 46 + (i % 4) * 6,
@@ -3893,15 +3906,20 @@
     if (!onScreen(x, y, 70)) return;
     const dw = spec.spriteW || 36;
     const dh = spec.spriteH || 72;
+    const ang = spec.ang || 0;
     const sx = x - cam.x;
     const sy = y - cam.y;
     ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate((spec.ang || 0) + Math.PI / 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.translate(sx + 4, sy + 5);
+    ctx.rotate(ang);
+    ctx.fillStyle = 'rgba(12, 10, 8, 0.48)';
     ctx.beginPath();
-    ctx.ellipse(1, 5, dh * 0.42, dw * 0.36, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, dh * 0.42, dw * 0.36, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(ang + Math.PI / 2);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(spec.img, -dw / 2, -dh / 2, dw, dh);
     const steer = spec.steer || 0;
@@ -3998,28 +4016,29 @@
     const y0 = pr.footY - cam.y;
     const fw = pr.fw;
     const fh = pr.fh;
-    const depth = pr.sideDepth || 18;
-    const wallH = pr.wallDrop || 58;
+    const wallH = pr.wallDrop || 42;
+    const depth = 12;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#3a342e';
-    ctx.fillRect(x0 + fw, y0 + 6, depth, fh + wallH - 6);
+    ctx.fillRect(x0 + fw - depth, y0 + 4, depth, fh - wallH);
     ctx.fillStyle = '#2a2622';
-    ctx.fillRect(x0 + fw, y0 + 6, 3, fh + wallH - 6);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    for (let yy = y0 + 20; yy < y0 + fh + wallH - 4; yy += 16) {
-      ctx.fillRect(x0 + fw + 3, yy, depth - 3, 1);
-    }
+    ctx.fillRect(x0 + fw - depth, y0 + 4, 3, fh - wallH);
     ctx.fillStyle = '#1c242c';
-    for (let yy = y0 + 28; yy < y0 + fh - 6; yy += 30) {
-      ctx.fillRect(x0 + fw + 6, yy, 7, 11);
+    for (let yy = y0 + 16; yy < y0 + fh - wallH - 8; yy += 26) {
+      ctx.fillRect(x0 + fw - depth + 4, yy, 6, 10);
       ctx.fillStyle = '#9aafba';
-      ctx.fillRect(x0 + fw + 7, yy + 1, 5, 4);
+      ctx.fillRect(x0 + fw - depth + 5, yy + 1, 4, 4);
       ctx.fillStyle = '#1c242c';
     }
-    if (pr.wallFront) ctx.drawImage(pr.wallFront, x0, y0 + fh - 6, fw, wallH + 6);
+    if (pr.wallFront) ctx.drawImage(pr.wallFront, x0, y0 + fh - wallH, fw, wallH);
     const rw = pr.roof.worldW || (fw + 16);
     const rh = pr.roof.worldH || (fh + 16);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, fw, fh - wallH + 8);
+    ctx.clip();
     ctx.drawImage(pr.roof, x0 - 8, y0 - 8, rw, rh);
+    ctx.restore();
   }
 
   function drawTraffic(car) {
@@ -4047,6 +4066,14 @@
       if (!propOnScreen(pr)) continue;
       if (pr.kind === 'build') {
         drawBuildShadow(pr);
+      } else if (pr.kind === 'tree') {
+        const pw = pr.w || pr.img.width;
+        const cx = Math.round(pr.x + pw / 2 - cam.x + 5);
+        const cy = Math.round(pr.sortY - cam.y + 1);
+        ctx.fillStyle = 'rgba(12, 10, 8, 0.38)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0.15, 0, Math.PI * 2);
+        ctx.fill();
       } else if (pr.kind !== 'car') {
         const pw = pr.w || pr.img.width;
         const cx = Math.round(pr.x + pw / 2 - cam.x);
