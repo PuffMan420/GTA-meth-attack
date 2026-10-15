@@ -17,7 +17,7 @@ html, body {
   height: 100%;
   background: #07060b;
   color: var(--paper);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: "Courier New", ui-monospace, Menlo, monospace;
 }
 
 body {
@@ -77,9 +77,9 @@ button, ul, p, h1, h2, dl { margin: 0; }
   transform-origin: left center;
 }
 
-#hp-fill { background: linear-gradient(#7dffb0, var(--green)); width: 100%; }
-#hp-fill.mid { background: linear-gradient(#ffe98a, #f0b429); }
-#hp-fill.low { background: linear-gradient(#ff8b98, var(--red)); }
+#hp-fill { background: linear-gradient(#b8ffd4, #3dff8a 55%, #14924a); width: 100%; }
+#hp-fill.mid { background: linear-gradient(#fff3b0, #f0b429 60%, #a86b10); }
+#hp-fill.low { background: linear-gradient(#ffd0d6, var(--red) 60%, #8e1020); animation: hp-pulse 0.55s steps(2, end) infinite; }
 
 #hp-text {
   position: absolute;
@@ -94,10 +94,14 @@ button, ul, p, h1, h2, dl { margin: 0; }
   text-shadow: none;
 }
 
+#timer, #level, #kills, #boss-label, #banner, .eyebrow, h1, h2, #start-btn, #retry-btn, #mute, .card strong, .card .tag {
+  text-transform: uppercase;
+}
+
 #timer, #level, #kills, #boss-label {
   font-weight: 900;
-  letter-spacing: 0.04em;
-  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 0.06em;
+  text-shadow: 2px 2px 0 #000, -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000;
 }
 
 #timer { font-size: 18px; color: var(--yellow); min-width: 64px; text-align: center; }
@@ -120,12 +124,13 @@ button, ul, p, h1, h2, dl { margin: 0; }
 #weapon-icons { display: flex; gap: 4px; }
 
 #weapon-icons canvas {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  background: rgba(12, 8, 18, 0.75);
-  border: 2px solid var(--yellow);
+  background: #140c18;
+  border: 3px solid var(--yellow);
+  box-shadow: 2px 2px 0 #000;
 }
 
 #bossbar {
@@ -193,7 +198,21 @@ button, ul, p, h1, h2, dl { margin: 0; }
   border-radius: 50%;
   background: rgba(255, 225, 74, 0.92);
   border: 3px solid var(--ink);
+  box-shadow: inset -4px -4px 0 rgba(180, 120, 20, 0.45), inset 3px 3px 0 rgba(255, 255, 220, 0.45);
   transform: translate(-50%, -50%);
+}
+
+#knob::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(#140c18, #140c18) center / 2px 12px no-repeat,
+    linear-gradient(#140c18, #140c18) center / 12px 2px no-repeat;
 }
 
 #banner {
@@ -232,6 +251,10 @@ button, ul, p, h1, h2, dl { margin: 0; }
 #title-screen, #level-screen, #dead-screen {
   width: min(640px, 100%);
   text-align: center;
+  background: rgba(16, 10, 24, 0.9);
+  border: 4px solid var(--yellow);
+  box-shadow: 6px 6px 0 #000, inset 0 0 0 3px #140c18;
+  padding: 16px 14px 18px;
 }
 
 .eyebrow {
@@ -245,10 +268,15 @@ button, ul, p, h1, h2, dl { margin: 0; }
 
 h1, h2 {
   font-weight: 900;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   line-height: 0.95;
   color: var(--yellow);
-  text-shadow: 4px 4px 0 #000;
+  text-shadow:
+    4px 4px 0 #000,
+    -2px 0 0 #140c18,
+    2px 0 0 #140c18,
+    0 -2px 0 #140c18,
+    0 2px 0 #140c18;
 }
 
 h1 { font-size: clamp(34px, 8vw, 68px); margin-bottom: 12px; }
@@ -377,6 +405,10 @@ li {
   #timer { font-size: 16px; }
   #mute { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
   #hud { padding-bottom: 0; }
+}
+
+@keyframes hp-pulse {
+  50% { filter: brightness(1.35); }
 }
 
 @media (prefers-reduced-motion: reduce) {

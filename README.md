@@ -4,16 +4,18 @@ Ett litet spel i webbläsaren, ritat i pixelstil. Du ser staden uppifrån, ungef
 
 Det är en tecknad parodi med överdriven humor. Ingenting i spelet är en instruktion om riktiga droger.
 
+Själva spelet är på engelska: menyer, knappar, kort, vapen och texter på skärmen. Den här instruktionen är på svenska.
+
 ## Så spelar du
 
 1. Öppna `index.html` (dubbelklicka på filen) eller länken du får från GitHub Pages.
-2. Tryck på **Kör**.
+2. Tryck på **GO**.
 3. På datorn: gå med **WASD** eller **piltangenterna**. På telefonen: dra i spaken nere till vänster.
 4. Håll dig i rörelse. Zombisar, snutar och skumma typer jagar dig. Ibland dyker en boss upp.
 5. Gå på glittret som fiender tappar. När mätaren fylls pausas spelet och du väljer **ett av tre kort**.
-6. Hälsan syns uppe till vänster, tiden uppe i mitten. När hälsan tar slut ser du hur länge du klarade dig. Tryck **Kör igen**.
+6. Hälsan syns uppe till vänster, tiden uppe i mitten. När hälsan tar slut ser du hur länge du klarade dig. Tryck **AGAIN**.
 
-Ljudet skapas i webbläsaren. Knappen **Ljud på** stänger av det.
+Ljudet skapas i webbläsaren. Knappen **Sound on** stänger av det.
 
 ## Lägg upp spelet på GitHub Pages
 
