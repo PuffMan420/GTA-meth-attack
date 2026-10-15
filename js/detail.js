@@ -61,11 +61,8 @@
   }
 
   function paintPerson(dir, frame, look, pose, big) {
-    const u = big ? 3 : 2;
-    const cols = big ? 18 : 16;
-    const rows = big ? 26 : 24;
-    const W = cols * u;
-    const H = rows * u;
+    const W = big ? 48 : 32;
+    const H = big ? 72 : 48;
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
@@ -73,104 +70,121 @@
     c.worldH = H / 2;
     const g = c.getContext('2d');
     const f = frame % 8;
-    const swing = [0, 1, 2, 1, 0, -1, -2, -1][f];
+    const swing = [0, 2, 4, 2, 0, -2, -4, -2][f];
     const side = dir === 'side';
     const back = dir === 'up' || dir === 'ne';
     const attack = pose === 'attack';
-    const wide = look.wide ? 1 : 0;
+    const k = big ? 1.5 : 1;
+    function n(v) { return Math.round(v * k); }
 
-    function box(x, y, w, h, color) {
+    function chunk(x, y, w, h, mid, hi, dk) {
       if (w < 1 || h < 1) return;
       g.fillStyle = '#000';
       g.fillRect(x - 1, y - 1, w + 2, h + 2);
-      g.fillStyle = color;
+      g.fillStyle = mid;
       g.fillRect(x, y, w, h);
-    }
-    function cell(x, y, w, h, color) {
-      box((x | 0) * u, (y | 0) * u, (w | 0) * u, (h | 0) * u, color);
-    }
-
-    const ox = side ? 1 : 0;
-    const legL = 4 + ox + (back ? -swing : swing);
-    const legR = 8 + ox + wide - (back ? -swing : swing);
-    cell(legL, 14, 3, 6, look.pants);
-    cell(legR, 14, 3, 6, look.pantsDk || look.pants);
-    cell(legL, 15, 1, 4, look.pantsHi || look.pants);
-    cell(legL - 1, 20, 4, 2, look.shoe);
-    cell(legR, 20, 4, 2, look.shoe);
-    cell(legL - 1, 20, 2, 1, '#3a342c');
-
-    const torsoX = (side ? 5 : 4) + ox;
-    const torsoW = (side ? 6 : 8) + wide;
-    cell(torsoX, 8, torsoW, 7, look.jacket);
-    cell(torsoX, 8, 1, 6, look.jacketHi || look.jacket);
-    cell(torsoX + torsoW - 1, 9, 1, 5, look.jacketDk || look.jacket);
-    if (look.coat) cell(torsoX - 1, 13, torsoW + 2, 3, look.jacketDk || look.jacket);
-    if (!back || side) cell(torsoX + 2, 9, Math.max(2, torsoW - 4), 3, look.shirtHi || '#fff');
-    if (look.torn) cell(torsoX + 1, 11, 2, 2, look.skin);
-    if (look.badge) cell(torsoX + torsoW - 3, 9, 2, 2, look.badge);
-    if (look.chain) {
-      cell(torsoX + 1, 11, torsoW - 2, 1, '#ffe9a0');
-      cell(torsoX + (torsoW / 2 | 0), 12, 1, 2, '#ffe9a0');
-    }
-
-    const reach = attack ? 3 : 0;
-    cell(torsoX - 2, 9, 2, 5, look.jacketDk || look.jacket);
-    cell(torsoX + torsoW - reach * 0 + reach, 8, 2 + (attack ? 2 : 0), 5, look.jacketHi || look.jacket);
-    cell(torsoX - 2, 13, 2, 2, look.skin);
-    cell(torsoX + torsoW + reach, 12, 2, 2, look.skin);
-    if (look.stick) cell(torsoX + torsoW + 2 + reach, 7, 1, 7, '#d5d0dc');
-
-    const hx = (side ? 6 : 5) + ox;
-    const hw = side ? 5 : 6;
-    cell(hx, 3, hw, 5, look.skin);
-    cell(hx, 3, 1, 4, look.skinHi || look.skin);
-    if (look.hat) {
-      cell(hx - 1, 2, hw + 2, 2, look.hat);
-      cell(hx, 1, hw, 2, look.hatHi || look.hat);
-    } else if (look.cap) {
-      cell(hx - 1, 2, hw + 2, 2, look.cap);
-      cell(hx + hw - 1, 3, 2, 1, look.capHi || look.cap);
-    } else if (look.bald) {
-      cell(hx + 1, 2, hw - 2, 1, look.skinHi || look.skin);
-    } else if (look.mohawk) {
-      cell(hx + 2, 0, 2, 5, look.mohawk);
-    } else {
-      cell(hx - 1, 2, hw + 2, 3, look.hair || '#2a160f');
-      cell(hx, 2, 2, 1, look.hairHi || look.hair || '#8a5a3a');
-      if (look.longHair) {
-        cell(hx - 1, 5, 1, 6, look.hair);
-        cell(hx + hw, 5, 1, 6, look.hair);
+      if (hi) {
+        g.fillStyle = hi;
+        g.fillRect(x, y, Math.max(1, w - 2), Math.max(1, Math.min(2, h >> 1)));
+        g.fillRect(x, y, Math.max(1, Math.min(2, w >> 2)), h);
+      }
+      if (dk) {
+        g.fillStyle = dk;
+        g.fillRect(x, y + h - Math.max(1, Math.min(2, h >> 2)), w, Math.max(1, Math.min(2, h >> 2)));
+        g.fillRect(x + w - Math.max(1, Math.min(2, w >> 3)), y, Math.max(1, Math.min(2, w >> 3)), h);
       }
     }
 
+    const ox = side ? n(2) : 0;
+    const legW = n(5);
+    const legH = n(14);
+    const legY = n(28);
+    const lSwing = back ? -swing : swing;
+    chunk(n(8) + ox + (lSwing > 0 ? lSwing : 0), legY, legW, legH, look.pants, look.pantsHi, look.pantsDk);
+    chunk(n(16) + ox - (lSwing < 0 ? -lSwing : 0), legY + (attack ? 0 : 1), legW, legH - 1, look.pantsDk || look.pants, look.pants, look.pantsDk);
+    chunk(n(7) + ox + (lSwing > 0 ? lSwing : 0), n(40), n(7), n(5), look.shoe, '#4f5f8b', '#000');
+    chunk(n(16) + ox, n(40), n(7), n(5), look.shoe, '#1f2e4b', '#000');
+
+    const torsoX = n(side ? 10 : 7) + ox;
+    const torsoW = n(side ? 10 : 16) + (look.wide ? n(2) : 0);
+    const torsoY = n(16);
+    const torsoH = n(14) + (look.coat ? n(3) : 0);
+    chunk(torsoX, torsoY, torsoW, torsoH, look.jacket, look.jacketHi, look.jacketDk);
+    if (!back) chunk(torsoX + n(4), torsoY + n(2), Math.max(n(3), torsoW - n(8)), n(5), look.shirtHi || '#fff', '#fff', look.shirtDk || look.shirtHi);
+    if (look.torn) chunk(torsoX + n(2), torsoY + n(6), n(3), n(3), look.skin, look.skinHi, look.skinDk);
+    if (look.badge) chunk(torsoX + torsoW - n(5), torsoY + n(2), n(3), n(3), look.badge, '#fff6c0', '#a87410');
+    if (look.chain) {
+      g.fillStyle = '#ffe9a0';
+      g.fillRect(torsoX + n(3), torsoY + n(7), torsoW - n(6), 1);
+      g.fillRect(torsoX + (torsoW >> 1), torsoY + n(8), 2, n(3));
+    }
+
+    const reach = attack ? n(6) : 0;
+    chunk(torsoX - n(3), torsoY + n(1), n(4), n(10), look.jacketDk || look.jacket, look.jacket, '#000');
+    chunk(torsoX + torsoW - n(1) + reach, torsoY, n(4) + (attack ? n(2) : 0), n(10), look.jacketHi || look.jacket, '#fff', look.jacketDk);
+    chunk(torsoX - n(3), torsoY + n(9), n(3), n(3), look.skin, look.skinHi, look.skinDk);
+    chunk(torsoX + torsoW + reach, torsoY + n(8), n(3), n(3), look.skin, look.skinHi, look.skinDk);
+    if (look.stick) {
+      g.fillStyle = '#000';
+      g.fillRect(torsoX + torsoW + n(3) + reach, torsoY - n(2), 2, n(16));
+      g.fillStyle = '#d5d0dc';
+      g.fillRect(torsoX + torsoW + n(3) + reach, torsoY - n(1), 1, n(14));
+    }
+
+    const hx = n(side ? 11 : 9) + ox;
+    const hy = n(4);
+    const hw = n(side ? 8 : 12);
+    const hh = n(12);
+    chunk(hx, hy, hw, hh, look.skin, look.skinHi, look.skinDk);
+    if (look.hat) {
+      chunk(hx - n(1), hy - n(2), hw + n(2), n(5), look.hat, look.hatHi, '#000');
+    } else if (look.cap) {
+      chunk(hx - n(1), hy - n(1), hw + n(3), n(4), look.cap, look.capHi, '#000');
+    } else if (look.bald) {
+      g.fillStyle = look.skinHi || look.skin;
+      g.fillRect(hx + 2, hy, hw - 4, 2);
+    } else if (look.mohawk) {
+      chunk(hx + (hw >> 1) - 1, hy - n(4), n(3), n(8), look.mohawk, '#ffd0e4', '#8a1848');
+    } else {
+      chunk(hx - 1, hy - n(1), hw + 2, n(5), look.hair || '#2a160f', look.hairHi || look.hair, '#000');
+      if (look.longHair) {
+        chunk(hx - n(2), hy + n(4), n(3), n(10), look.hair, look.hairHi, '#000');
+        chunk(hx + hw - 1, hy + n(4), n(3), n(10), look.hair, look.hairHi, '#000');
+      }
+    }
     if (!back || dir === 'ne') {
       if (side) {
-        cell(hx + 3, 5, 2, 1, '#140c18');
-        cell(hx + 3, 5, 1, 1, '#fff');
-        cell(hx + 4, 6, 1, 1, look.skinDk || look.skin);
-      } else if (look.shades) {
-        cell(hx, 5, hw, 1, '#100c16');
-        cell(hx, 5, 2, 1, '#9ee7ff');
-        cell(hx + hw - 2, 5, 2, 1, '#ff8ac0');
-      } else {
-        const eye = look.eye || '#140c18';
-        cell(hx + 1, 5, 1, 1, eye);
-        cell(hx + hw - 2, 5, 1, 1, eye);
+        g.fillStyle = '#000';
+        g.fillRect(hx + hw - n(3), hy + n(5), n(2), n(2));
         g.fillStyle = '#fff';
-        g.fillRect((hx + 1) * u, 5 * u, Math.max(1, u - 1), Math.max(1, u - 1));
-        g.fillRect((hx + hw - 2) * u, 5 * u, Math.max(1, u - 1), Math.max(1, u - 1));
-        if (look.beard) cell(hx + 1, 7, hw - 2, 1, look.hair || '#2a160f');
-        else cell(hx + 2, 7, Math.max(2, hw - 4), 1, look.mouth || '#c4847c');
+        g.fillRect(hx + hw - n(3), hy + n(5), 1, 1);
+      } else if (look.shades) {
+        g.fillStyle = '#000';
+        g.fillRect(hx + n(1), hy + n(5), hw - n(2), n(3));
+        g.fillStyle = '#9ee7ff';
+        g.fillRect(hx + n(2), hy + n(6), n(3), 1);
+        g.fillStyle = '#ff8ac0';
+        g.fillRect(hx + hw - n(5), hy + n(6), n(3), 1);
+      } else {
+        g.fillStyle = '#000';
+        g.fillRect(hx + n(2), hy + n(5), n(2), n(2));
+        g.fillRect(hx + hw - n(4), hy + n(5), n(2), n(2));
+        g.fillStyle = '#fff';
+        g.fillRect(hx + n(2), hy + n(5), 1, 1);
+        g.fillRect(hx + hw - n(4), hy + n(5), 1, 1);
+        if (look.beard) {
+          g.fillStyle = look.hair || '#2a160f';
+          g.fillRect(hx + n(2), hy + hh - n(3), hw - n(4), n(2));
+        } else {
+          g.fillStyle = look.mouth || '#9d551d';
+          g.fillRect(hx + n(4), hy + hh - n(3), n(4), 1);
+        }
       }
     }
-
     if (big) {
-      cell(6, 0, 2, 2, '#e6b325');
-      cell(8, 0, 2, 3, '#fff6c0');
-      cell(10, 0, 2, 2, '#a87410');
-      cell(5, 9, 8, 4, '#6a3ad0');
-      cell(7, 10, 4, 2, '#ff4d8d');
+      chunk(n(12), 0, n(4), n(4), '#e6b325', '#fff6c0', '#a87410');
+      chunk(n(16), 0, n(6), n(5), '#fff6c0', '#fff', '#e6b325');
+      chunk(n(8), n(18), n(20), n(6), '#6a3ad0', '#d2b0ff', '#2a1848');
     }
     return outline(c, 1);
   }
@@ -209,143 +223,145 @@
     return out;
   }
 
-  function gemStone(size, a, b, c0) {
+  function gemStone(size, mid, dk, hi) {
     const s = document.createElement('canvas');
     s.width = size;
     s.height = size;
-    s.worldW = Math.round(size / 3);
-    s.worldH = s.worldW;
+    s.worldW = size / 2;
+    s.worldH = size / 2;
     const g = s.getContext('2d');
-    const grd = g.createLinearGradient(0, 0, size, size);
-    grd.addColorStop(0, c0);
-    grd.addColorStop(0.45, a);
-    grd.addColorStop(1, b);
-    g.fillStyle = grd;
-    g.beginPath();
-    g.moveTo(size / 2, 2);
-    g.lineTo(size - 3, size * 0.4);
-    g.lineTo(size / 2, size - 2);
-    g.lineTo(3, size * 0.4);
-    g.closePath();
-    g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.fillRect(size * 0.38, size * 0.28, size * 0.16, size * 0.12);
+    const m = (size / 2) | 0;
+    g.fillStyle = '#000';
+    g.fillRect(m - 2, 1, 4, 2);
+    g.fillRect(m - 6, 4, 12, 4);
+    g.fillRect(2, m - 4, size - 4, 8);
+    g.fillRect(m - 6, size - 8, 12, 4);
+    g.fillRect(m - 2, size - 4, 4, 2);
+    g.fillStyle = dk;
+    g.fillRect(m - 1, 2, 2, 2);
+    g.fillRect(m - 4, 5, 8, 2);
+    g.fillRect(4, m - 2, size - 8, 4);
+    g.fillRect(m - 4, size - 7, 8, 2);
+    g.fillStyle = mid;
+    g.fillRect(m - 2, 4, 4, 2);
+    g.fillRect(6, m - 1, size - 12, 3);
+    g.fillStyle = hi;
+    g.fillRect(m - 1, 4, 2, 2);
+    g.fillRect(7, m, 3, 2);
     return outline(s, 1);
   }
 
   function paintWeapons() {
-    const crystal = document.createElement('canvas');
-    crystal.width = 24;
-    crystal.height = 24;
-    crystal.worldW = 8;
-    crystal.worldH = 8;
+    function sheet(w, h) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      c.worldW = w / 2;
+      c.worldH = h / 2;
+      return c;
+    }
+    const crystal = sheet(16, 16);
     let g = crystal.getContext('2d');
-    const cg = g.createLinearGradient(0, 0, 24, 24);
-    cg.addColorStop(0, '#ffffff');
-    cg.addColorStop(0.35, '#b8fff8');
-    cg.addColorStop(1, '#1aa8c4');
-    g.fillStyle = cg;
-    g.beginPath();
-    g.moveTo(12, 1);
-    g.lineTo(22, 12);
-    g.lineTo(12, 23);
-    g.lineTo(2, 12);
-    g.closePath();
-    g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.9)';
-    g.fillRect(8, 7, 4, 3);
-
-    const cart = document.createElement('canvas');
-    cart.width = 48;
-    cart.height = 42;
-    cart.worldW = 16;
-    cart.worldH = 14;
-    g = cart.getContext('2d');
-    const mg = g.createLinearGradient(0, 0, 0, 42);
-    mg.addColorStop(0, '#f4f2f8');
-    mg.addColorStop(1, '#6a6478');
-    g.fillStyle = mg;
-    g.fillRect(6, 4, 36, 8);
-    g.fillRect(8, 12, 4, 18);
-    g.fillRect(36, 12, 4, 18);
-    g.fillRect(8, 28, 32, 4);
-    g.fillStyle = '#1a1420';
-    g.fillRect(6, 32, 10, 8);
-    g.fillRect(32, 32, 10, 8);
-    g.fillStyle = '#8d8a98';
-    g.fillRect(8, 34, 4, 3);
-
-    const speaker = document.createElement('canvas');
-    speaker.width = 42;
-    speaker.height = 42;
-    speaker.worldW = 14;
-    speaker.worldH = 14;
-    g = speaker.getContext('2d');
-    const sg = g.createLinearGradient(0, 0, 42, 42);
-    sg.addColorStop(0, '#6a5088');
-    sg.addColorStop(1, '#1a1224');
-    g.fillStyle = sg;
-    g.fillRect(4, 4, 34, 30);
-    const cone = g.createRadialGradient(14, 14, 2, 14, 14, 10);
-    cone.addColorStop(0, '#d8fbff');
-    cone.addColorStop(1, '#1a6a78');
-    g.fillStyle = cone;
-    g.beginPath();
-    g.arc(14, 16, 8, 0, Math.PI * 2);
-    g.fill();
-    const cone2 = g.createRadialGradient(30, 16, 1, 30, 16, 8);
-    cone2.addColorStop(0, '#ffd0e4');
-    cone2.addColorStop(1, '#a01848');
-    g.fillStyle = cone2;
-    g.beginPath();
-    g.arc(30, 16, 7, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#ffe14a';
-    g.fillRect(8, 34, 26, 3);
-
-    const bottle = document.createElement('canvas');
-    bottle.width = 18;
-    bottle.height = 36;
-    bottle.worldW = 6;
-    bottle.worldH = 12;
-    g = bottle.getContext('2d');
-    g.fillStyle = '#f4f1ea';
-    g.fillRect(6, 1, 6, 6);
-    const bg = g.createLinearGradient(0, 8, 18, 36);
-    bg.addColorStop(0, '#e8fff2');
-    bg.addColorStop(0.4, '#3ecf6e');
-    bg.addColorStop(1, '#0e5a32');
-    g.fillStyle = bg;
-    g.fillRect(3, 7, 12, 26);
-    g.fillStyle = 'rgba(255,255,255,0.65)';
-    g.fillRect(5, 10, 2, 10);
-    g.fillStyle = '#ff4d8d';
-    g.fillRect(4, 20, 10, 3);
-
-    const bag = document.createElement('canvas');
-    bag.width = 24;
-    bag.height = 24;
-    bag.worldW = 8;
-    bag.worldH = 8;
-    g = bag.getContext('2d');
-    const pg = g.createLinearGradient(0, 0, 24, 24);
-    pg.addColorStop(0, '#e7c6ff');
-    pg.addColorStop(0.5, '#b06bff');
-    pg.addColorStop(1, '#5a2088');
-    g.fillStyle = pg;
-    g.fillRect(4, 6, 16, 14);
+    g.fillStyle = '#000';
+    g.fillRect(6, 0, 4, 2);
+    g.fillRect(3, 3, 10, 4);
+    g.fillRect(1, 7, 14, 4);
+    g.fillRect(3, 11, 10, 3);
+    g.fillRect(6, 14, 4, 2);
+    g.fillStyle = '#1aa8c4';
+    g.fillRect(7, 1, 2, 2);
+    g.fillRect(4, 4, 8, 2);
+    g.fillRect(2, 8, 12, 2);
+    g.fillRect(4, 11, 8, 2);
+    g.fillRect(7, 14, 2, 1);
+    g.fillStyle = '#b8fff8';
+    g.fillRect(6, 4, 3, 2);
+    g.fillRect(3, 8, 4, 2);
     g.fillStyle = '#fff';
-    g.fillRect(8, 10, 8, 4);
+    g.fillRect(6, 5, 2, 1);
+
+    const cart = sheet(32, 28);
+    g = cart.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(2, 2, 28, 8);
+    g.fillRect(4, 8, 4, 14);
+    g.fillRect(24, 8, 4, 14);
+    g.fillRect(4, 20, 24, 4);
+    g.fillRect(2, 22, 8, 6);
+    g.fillRect(22, 22, 8, 6);
+    g.fillStyle = '#d8d4dc';
+    g.fillRect(4, 3, 24, 5);
+    g.fillRect(5, 9, 2, 12);
+    g.fillRect(25, 9, 2, 12);
+    g.fillRect(6, 21, 20, 2);
+    g.fillStyle = '#f4f2f8';
+    g.fillRect(5, 3, 8, 2);
+    g.fillStyle = '#6a6478';
+    g.fillRect(18, 5, 8, 2);
+    g.fillStyle = '#1a1420';
+    g.fillRect(3, 23, 6, 4);
+    g.fillRect(23, 23, 6, 4);
+
+    const speaker = sheet(28, 28);
+    g = speaker.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(2, 2, 24, 22);
+    g.fillStyle = '#3a2860';
+    g.fillRect(4, 4, 20, 18);
+    g.fillStyle = '#6a5088';
+    g.fillRect(4, 4, 6, 8);
+    g.fillStyle = '#000';
+    g.fillRect(6, 7, 8, 8);
+    g.fillRect(16, 7, 8, 8);
+    g.fillStyle = '#1a6a78';
+    g.fillRect(7, 8, 6, 6);
+    g.fillStyle = '#d8fbff';
+    g.fillRect(8, 9, 3, 2);
+    g.fillStyle = '#a01848';
+    g.fillRect(17, 8, 6, 6);
+    g.fillStyle = '#ffd0e4';
+    g.fillRect(18, 9, 3, 2);
     g.fillStyle = '#ffe14a';
-    g.fillRect(9, 11, 2, 2);
+    g.fillRect(4, 22, 20, 3);
+
+    const bottle = sheet(12, 24);
+    g = bottle.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(4, 0, 4, 6);
+    g.fillRect(2, 5, 8, 18);
+    g.fillStyle = '#f4f1ea';
+    g.fillRect(5, 1, 2, 4);
+    g.fillStyle = '#0e5a32';
+    g.fillRect(3, 6, 6, 16);
+    g.fillStyle = '#3ecf6e';
+    g.fillRect(3, 6, 6, 6);
+    g.fillStyle = '#e8fff2';
+    g.fillRect(4, 7, 2, 4);
+    g.fillStyle = '#ff4d8d';
+    g.fillRect(3, 13, 6, 2);
+
+    const bag = sheet(16, 16);
+    g = bag.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(3, 3, 10, 11);
+    g.fillStyle = '#5a2088';
+    g.fillRect(4, 4, 8, 9);
+    g.fillStyle = '#b06bff';
+    g.fillRect(4, 4, 8, 4);
+    g.fillStyle = '#e7c6ff';
+    g.fillRect(5, 5, 3, 2);
+    g.fillStyle = '#fff';
+    g.fillRect(5, 8, 6, 2);
+    g.fillStyle = '#ffe14a';
+    g.fillRect(6, 8, 2, 2);
 
     return {
       crystal: outline(crystal, 1),
-      gem: [gemStone(24, '#d7b4ff', '#5a28a0', '#fff'), gemStone(24, '#efe6ff', '#8a4ad4', '#fff')],
-      gemMid: [gemStone(24, '#ffe14a', '#c48410', '#fff6c8'), gemStone(24, '#fff6c8', '#e09a18', '#fff')],
-      gemBig: [gemStone(30, '#7ef0f4', '#147888', '#ffffff'), gemStone(30, '#d8fbff', '#1aa8c4', '#fff')],
-      cart: outline(cart, 2),
-      speaker: outline(speaker, 2),
+      gem: [gemStone(16, '#d7b4ff', '#5a28a0', '#fff'), gemStone(16, '#efe6ff', '#8a4ad4', '#fff')],
+      gemMid: [gemStone(16, '#ffe14a', '#c48410', '#fff6c8'), gemStone(16, '#fff6c8', '#e09a18', '#fff')],
+      gemBig: [gemStone(20, '#7ef0f4', '#147888', '#ffffff'), gemStone(20, '#d8fbff', '#1aa8c4', '#fff')],
+      cart: outline(cart, 1),
+      speaker: outline(speaker, 1),
       bottle: outline(bottle, 1),
       bag: outline(bag, 1),
     };
@@ -453,11 +469,12 @@
       c.height = 42;
       c.worldW = 10;
       c.worldH = 14;
-      const grd = g.createLinearGradient(0, 0, 30, 42);
-      grd.addColorStop(0, '#6a8a58');
-      grd.addColorStop(1, '#243018');
-      g.fillStyle = grd;
+      g.fillStyle = '#000';
+      g.fillRect(3, 7, 24, 30);
+      g.fillStyle = '#243018';
       g.fillRect(4, 8, 22, 28);
+      g.fillStyle = '#6a8a58';
+      g.fillRect(4, 8, 22, 8);
       g.fillStyle = '#8aaa70';
       g.fillRect(6, 10, 4, 18);
       g.fillStyle = '#1a2414';
@@ -471,14 +488,14 @@
       c.height = 42;
       c.worldW = 8;
       c.worldH = 14;
+      g.fillStyle = '#000';
+      g.fillRect(5, 9, 14, 28);
       g.fillStyle = '#8a1828';
-      g.fillRect(8, 34, 8, 6);
-      const grd = g.createLinearGradient(0, 0, 24, 42);
-      grd.addColorStop(0, '#ff8aa0');
-      grd.addColorStop(0.4, '#e23b4a');
-      grd.addColorStop(1, '#8a1828');
-      g.fillStyle = grd;
-      g.fillRect(6, 10, 12, 26);
+      g.fillRect(6, 18, 12, 18);
+      g.fillStyle = '#e23b4a';
+      g.fillRect(6, 10, 12, 12);
+      g.fillStyle = '#ff8aa0';
+      g.fillRect(7, 11, 4, 6);
       g.fillStyle = '#ffd0d8';
       g.fillRect(8, 12, 3, 10);
       g.fillStyle = '#c8d0d8';
@@ -493,13 +510,18 @@
       c.height = 30;
       c.worldW = 8;
       c.worldH = 10;
+      g.fillStyle = '#000';
+      g.fillRect(10, 2, 4, 4);
+      g.fillRect(7, 6, 10, 6);
+      g.fillRect(4, 12, 16, 8);
+      g.fillRect(2, 20, 20, 6);
       g.fillStyle = '#ff8a3d';
-      g.beginPath();
-      g.moveTo(12, 2);
-      g.lineTo(22, 26);
-      g.lineTo(2, 26);
-      g.closePath();
-      g.fill();
+      g.fillRect(11, 3, 2, 2);
+      g.fillRect(8, 7, 8, 4);
+      g.fillRect(5, 13, 14, 6);
+      g.fillRect(3, 21, 18, 4);
+      g.fillStyle = '#ffe14a';
+      g.fillRect(10, 8, 3, 2);
       g.fillStyle = '#fff6c8';
       g.fillRect(7, 12, 10, 4);
       g.fillStyle = '#1a1420';
