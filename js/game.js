@@ -2099,6 +2099,37 @@
     flashes.push({ x: x, y: y, ang: ang, color: color, life: 0.07, max: 0.07 });
   }
 
+  function pistolPoint() {
+    const hero = window.GTAPlayer && window.GTAPlayer.ready && window.GTAPlayer.frame(player, globalTime);
+    const dw = (hero && hero.worldW) || 27;
+    const dh = (hero && hero.worldH) || 34;
+    const foot = 2;
+    let lx = -dw / 2 + (8 / 76) * dw;
+    const ly = -dh + foot + (49 / 98) * dh;
+    if (player.flip) lx = -lx;
+    const out = player.flip ? 2 : -2;
+    return { x: player.x + lx + out, y: player.y + ly };
+  }
+
+  function pistolFx(ang) {
+    const g = pistolPoint();
+    if (flashes.length > 28) flashes.shift();
+    flashes.push({ x: g.x, y: g.y, ang: ang, color: '#fff6b0', life: 0.12, max: 0.12, pistol: true });
+    if (particles.length > 168) return;
+    for (let i = 0; i < 4; i++) {
+      particles.push({
+        x: g.x + (i - 1),
+        y: g.y,
+        vx: -Math.cos(ang) * (6 + i * 3),
+        vy: -Math.sin(ang) * (6 + i * 3) - 12 - i * 3,
+        life: 0.26 + i * 0.04,
+        max: 0.34,
+        color: i % 2 ? '#d8d4e0' : '#8a8680',
+        size: 2,
+      });
+    }
+  }
+
   function spawnBark(x, y, text, color) {
     if (barks.length >= 4) return;
     barks.push({ x: x, y: y - 32, text: text, color: color || '#fff', life: 1.15, max: 1.15 });
@@ -2514,7 +2545,7 @@
         sfx.shoot(820);
         arcBit(player.x, player.y, '#e6c14a', 1);
         const base = Math.atan2(targets[0].y - player.y, targets[0].x - player.x);
-        muzzle(player.x + Math.cos(base) * 8, player.y - 2 + Math.sin(base) * 8, base, '#fff6b0');
+        pistolFx(base);
         for (let i = 0; i < count; i++) {
           if (shots.length > 160) break;
           let ang;
@@ -4127,6 +4158,16 @@
         ctx.restore();
       } else {
         drawCentered(spr.crystal, p.x, p.y);
+        const bang = Math.atan2(p.vy, p.vx);
+        ctx.fillStyle = '#fff6b0';
+        for (let s = 3; s <= 9; s += 3) {
+          ctx.fillRect(
+            Math.round(p.x - cam.x - Math.cos(bang) * s) - 1,
+            Math.round(p.y - cam.y - Math.sin(bang) * s) - 1,
+            2,
+            2
+          );
+        }
         if (((globalTime * 14) | 0) % 2 === 0) {
           ctx.fillStyle = '#fff';
           ctx.fillRect(Math.round(p.x - cam.x) - 1, Math.round(p.y - cam.y) - 5, 2, 2);
@@ -4153,6 +4194,19 @@
     for (let i = 0; i < flashes.length; i++) {
       const f = flashes[i];
       if (!onScreen(f.x, f.y, 16)) continue;
+      if (f.pistol) {
+        ctx.globalAlpha = Math.max(0, f.life / f.max);
+        const x = Math.round(f.x - cam.x);
+        const y = Math.round(f.y - cam.y);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x - 1, y - 1, 3, 3);
+        ctx.fillStyle = '#fff6b0';
+        ctx.fillRect(Math.round(x + Math.cos(f.ang) * 4) - 1, Math.round(y + Math.sin(f.ang) * 4) - 1, 3, 2);
+        ctx.fillStyle = '#ffb020';
+        ctx.fillRect(Math.round(x + Math.cos(f.ang) * 7), Math.round(y + Math.sin(f.ang) * 7), 2, 2);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.save();
       ctx.translate(Math.round(f.x - cam.x), Math.round(f.y - cam.y));
       ctx.rotate(f.ang);
