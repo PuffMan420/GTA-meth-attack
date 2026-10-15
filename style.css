@@ -107,7 +107,7 @@ button, ul, p, h1, h2, dl { margin: 0; }
   text-shadow: none;
 }
 
-#timer, #level, #kills, #boss-label, #banner, .eyebrow, h1, h2, #start-btn, #retry-btn, #mute, .card strong, .card .tag {
+#timer, #level, #kills, #boss-label, #banner, .eyebrow, h1, h2, #start-btn, #retry-btn, #mute, #gore, .card strong, .card .tag {
   text-transform: uppercase;
 }
 
@@ -170,11 +170,16 @@ button, ul, p, h1, h2, dl { margin: 0; }
   box-shadow: 3px 3px 0 #000;
 }
 
-#mute {
+#toggles {
   position: fixed;
-  z-index: 25;
+  z-index: 40;
   top: max(8px, env(safe-area-inset-top));
   right: max(8px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+}
+
+#mute, #gore {
   min-width: 92px;
   min-height: 36px;
   padding: 6px 10px;
@@ -187,7 +192,7 @@ button, ul, p, h1, h2, dl { margin: 0; }
   cursor: pointer;
 }
 
-#mute[aria-pressed="true"] { background: #6a6478; color: var(--paper); }
+#mute[aria-pressed="true"], #gore[aria-pressed="true"] { background: #6a6478; color: var(--paper); }
 
 #touch-hint {
   position: fixed;
@@ -365,7 +370,7 @@ li {
   letter-spacing: 0.08em;
 }
 
-#start-btn:active, #retry-btn:active, .card:active, #mute:active {
+#start-btn:active, #retry-btn:active, .card:active, #mute:active, #gore:active {
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0 #000;
 }
@@ -414,7 +419,7 @@ li {
 .card strong { font-size: 16px; }
 .card em { grid-column: 2; font-style: normal; font-weight: 600; color: #efe6d8; font-size: 14px; }
 
-.card:focus-visible, #start-btn:focus-visible, #retry-btn:focus-visible, #mute:focus-visible {
+.card:focus-visible, #start-btn:focus-visible, #retry-btn:focus-visible, #mute:focus-visible, #gore:focus-visible {
   outline: 3px solid var(--cyan);
   outline-offset: 2px;
 }
@@ -444,7 +449,7 @@ li {
 @media (max-width: 420px) {
   #hp-row, #xp-track, #meta-row, #bossbar { margin-right: 0; }
   #timer { font-size: 16px; }
-  #mute { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+  #toggles { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
   #hud { padding-bottom: 0; }
 }
 
