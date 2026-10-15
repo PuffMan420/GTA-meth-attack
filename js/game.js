@@ -808,10 +808,10 @@
   function paintAsphaltTile(g, tx, ty, x, y) {
     const S = TILE * ART;
     const n = hash(tx, ty);
-    const base = n % 17 === 0 ? '#343230' : n % 11 === 0 ? '#4a4844' : '#3c3c38';
+    const base = n % 17 === 0 ? '#2c3138' : n % 11 === 0 ? '#3c4450' : '#343a42';
     g.fillStyle = base;
     g.fillRect(x, y, S, S);
-    g.fillStyle = '#524e48';
+    g.fillStyle = '#4a5260';
     g.fillRect(x + (n % 18), y + 2, 3, 1);
     g.fillRect(x + ((n >> 4) % 20), y + 8, 2, 1);
     g.fillStyle = '#2a2824';
@@ -826,9 +826,9 @@
   function paintSidewalk(g, tx, ty, x, y) {
     const S = TILE * ART;
     const slab = (((tx >> 1) + (ty >> 1)) & 1) === 0;
-    g.fillStyle = slab ? '#d4cdc0' : '#c4baac';
+    g.fillStyle = slab ? '#c9ccc4' : '#b7bbb2';
     g.fillRect(x, y, S, S);
-    g.fillStyle = '#efe8dc';
+    g.fillStyle = '#e4e6e0';
     g.fillRect(x + 2, y + 2, S - 6, 3);
     g.fillRect(x + 2, y + 2, 3, S - 6);
     g.fillStyle = '#8e867a';
@@ -1292,6 +1292,19 @@
   }
 
   function makeBuildingSprite(fw, fh, pal, seed) {
+    const pack = window.GTAHand && window.GTAHand.buildings;
+    if (pack && pack.length) {
+      const spec = pack[Math.abs(seed) % pack.length];
+      const img = spec.img;
+      img.hand = true;
+      return {
+        canvas: img,
+        hand: true,
+        lights: [],
+        eaves: 0,
+        neon: NEONS[seed % NEONS.length],
+      };
+    }
     if (window.GTACity) {
       const neon = NEONS[seed % NEONS.length];
       const roof = window.GTACity.paintRoof(fw, fh, pal, seed);
@@ -1403,6 +1416,7 @@
   }
 
   function makeTreeSprite() {
+    if (window.GTAHand && window.GTAHand.tree) return window.GTAHand.tree;
     const c = document.createElement('canvas');
     c.width = 48;
     c.height = 56;
@@ -1528,7 +1542,17 @@
     return c;
   }
 
+  function handCarName(n) {
+    const names = window.GTAHand && window.GTAHand.ready && window.GTAHand.carNames;
+    if (names && names.length) return names[Math.abs(n) % names.length];
+    const models = (window.GTACity && window.GTACity.models) || ['sedan'];
+    return models[Math.abs(n) % models.length];
+  }
+
   function vehicleSprite(model, color) {
+    if (window.GTAHand && window.GTAHand.cars && window.GTAHand.cars[model]) {
+      return window.GTAHand.cars[model];
+    }
     const key = model + '|' + (color || '');
     if (!carCache[key]) {
       carCache[key] = window.GTACity
@@ -1609,6 +1633,28 @@
               if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
             }
           }
+          if (built.hand) {
+            const img = built.canvas;
+            const bw = fw;
+            const bh = fw * (img.height / img.width);
+            props.push({
+              img: img,
+              w: bw,
+              h: bh,
+              x: x0,
+              sortY: y0 + fh,
+              shadowW: 0,
+              shadowH: 0,
+              lights: [],
+              neon: built.neon,
+              kind: 'build',
+              hand: true,
+              footX: x0,
+              footY: y0,
+              fw: fw,
+              fh: fh,
+            });
+          } else {
           const lights = [];
           for (let i = 0; i < built.lights.length; i++) {
             const L = built.lights[i];
@@ -1640,6 +1686,7 @@
             fw: fw,
             fh: fh,
           });
+          }
           addLamp(x0 - 14, y0 + fh + 6);
           addLamp(x0 + fw + 2, y0 + fh + 6);
         } else if (kind === 0) {
@@ -1688,13 +1735,12 @@
             anchorX = spot.x;
             anchorY = spot.y;
           }
-          const models = (window.GTACity && window.GTACity.models) || ['sedan'];
-          const model = models[hash(tx, ty) % models.length];
+          const model = handCarName(hash(tx, ty));
           const color = CAR_COLORS[hash(tx, ty) % CAR_COLORS.length];
           const img = vehicleSprite(model, color);
           let ang = horiz ? 0 : Math.PI / 2;
           if (hash(ty, tx) & 1) ang += Math.PI;
-          const carScale = 0.84;
+          const carScale = img.hand ? 1 : 0.84;
           const carW = (img.worldW || 36) * carScale;
           const carH = (img.worldH || 72) * carScale;
           props.push({
@@ -3346,6 +3392,18 @@
       drawVehicle(pr);
       return;
     }
+    if (pr.kind === 'build' && pr.hand) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(pr.img, pr.footX - cam.x, pr.footY - cam.y, pr.w, pr.h);
+      return;
+    }
+    if (pr.kind === 'tree' && pr.img && pr.img.hand) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(pr.img, pr.x - cam.x, pr.sortY - cam.y - pr.h, pr.w, pr.h);
+      return;
+    }
     if (pr.kind === 'build' && pr.roof) {
       drawBlock(pr);
       return;
@@ -3446,13 +3504,17 @@
     const img = actorFrame(ent);
     if (!img) return;
     const foot = 2;
+    const gubbeEarly = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
     const breath = (!ent.moving && !(ent === player && player.moving) && !reduceMotion) ? (((globalTime * 2) | 0) % 2) * -1 : 0;
-    drawShadow(ent.x, ent.y + 1, Math.max(4, ((ent.radius || 6) * 0.85) | 0));
+    const hop = gubbeEarly && window.GTAPlayer.bob && !reduceMotion
+      ? window.GTAPlayer.bob(player, globalTime)
+      : breath;
+    if (!gubbeEarly) drawShadow(ent.x, ent.y + 1, Math.max(4, ((ent.radius || 6) * 0.85) | 0));
     ctx.save();
     const dx = Math.round((ent.x - cam.x) * drawScale) / drawScale;
-    const dy = Math.round((ent.y - cam.y + breath) * drawScale) / drawScale;
+    const dy = Math.round((ent.y - cam.y + hop) * drawScale) / drawScale;
     ctx.translate(dx, dy);
-    const gubbe = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
+    const gubbe = gubbeEarly;
     if (gubbe ? player.facing > 0 : (spr.cast ? ent.flip : ent.facing < 0)) ctx.scale(-1, 1);
     if ((ent.hit || 0) > 0 && !(ent.dying > 0)) {
       const k = Math.min(1, ent.hit / 0.16);
@@ -3494,7 +3556,8 @@
     }
     const dw = img.worldW || img.width;
     const dh = img.worldH || img.height;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = !!img.hand;
+    if (img.hand) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
     if (ent === player) drawHeldWeapon(dw, dh, foot);
     ctx.restore();
@@ -3640,13 +3703,13 @@
       }
     }
     const step = Math.max(1, (lanes.length / 8) | 0);
-    const models = (window.GTACity && window.GTACity.models) || ['sedan'];
     for (let i = 0; i < 8 && lanes.length; i++) {
       const cell = lanes[(i * step) % lanes.length];
-      const model = models[i % models.length];
+      const model = handCarName(hash(i + 3, i * 5 + 1));
       const color = CAR_COLORS[(i * 3) % CAR_COLORS.length];
       const img = vehicleSprite(model, color);
       const ang = Math.atan2(cell.vy, cell.vx);
+      const carScale = img.hand ? 1 : 0.84;
       traffic.push({
         x: cell.x,
         y: cell.y,
@@ -3658,8 +3721,8 @@
         phase: i * 1.7,
         model: model,
         img: img,
-        spriteW: (img.worldW || 36) * 0.84,
-        spriteH: (img.worldH || 72) * 0.84,
+        spriteW: (img.worldW || 36) * carScale,
+        spriteH: (img.worldH || 72) * carScale,
         radius: 14,
         vel: 46 + (i % 4) * 6,
         cruise: 46 + (i % 4) * 6,
@@ -4172,17 +4235,26 @@
     const ang = spec.ang || 0;
     const sx = x - cam.x;
     const sy = y - cam.y;
-    ctx.save();
-    ctx.translate(sx + 2, sy + 3);
-    ctx.rotate(ang);
-    ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
-    ctx.fillRect(-dh * 0.32, -dw * 0.22, dh * 0.64, dw * 0.44);
-    ctx.restore();
+    const painted = spec.img && spec.img.hand;
+    if (!painted) {
+      ctx.save();
+      ctx.translate(sx + 2, sy + 3);
+      ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
+      ctx.fillRect(-dh * 0.32, -dw * 0.22, dh * 0.64, dw * 0.44);
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(ang + Math.PI / 2);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = !!painted;
+    if (painted) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(spec.img, -dw / 2, -dh / 2, dw, dh);
+    if (painted) {
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      return;
+    }
     const steer = spec.steer || 0;
     if (steer) {
       ctx.save();
@@ -4301,9 +4373,9 @@
     for (let i = 0; i < props.length; i++) {
       const pr = props[i];
       if (!propOnScreen(pr)) continue;
-      if (pr.kind === 'build') {
+      if (pr.kind === 'build' && !pr.hand) {
         drawBuildShadow(pr);
-      } else if (pr.kind === 'tree') {
+      } else if (pr.kind === 'tree' && !(pr.img && pr.img.hand)) {
         const pw = pr.w || pr.img.width;
         const cx = Math.round(pr.x + pw / 2 - cam.x);
         const cy = Math.round(pr.sortY - cam.y);
@@ -5660,7 +5732,13 @@
 
   resize();
   buildSprites();
-  buildMap();
-  beginRun(false);
-  requestAnimationFrame(loop);
+  function bootWorld() {
+    buildMap();
+    beginRun(false);
+    requestAnimationFrame(loop);
+  }
+  const artReady = [];
+  if (window.GTAHand && window.GTAHand.loaded) artReady.push(window.GTAHand.loaded);
+  if (window.GTAPlayer && window.GTAPlayer.loaded) artReady.push(window.GTAPlayer.loaded);
+  Promise.all(artReady).then(bootWorld, bootWorld);
 })();
