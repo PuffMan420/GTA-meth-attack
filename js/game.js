@@ -150,6 +150,10 @@
   let folk = [];
   let traffic = [];
   let pigeons = [];
+  let street = [];
+  let skids = [];
+  let wanted = 0;
+  let wantedCool = 0;
   let manholes = [];
   let puddles = [];
   let signals = [];
@@ -675,6 +679,9 @@
       spr.speaker = art.speaker;
       spr.bottle = art.bottle;
       spr.bag = art.bag;
+      spr.bin = art.bin;
+      spr.hydrant = art.hydrant;
+      spr.cone = art.cone;
       spr.player = art.cast.player.walk.down;
     }
   }
@@ -882,6 +889,17 @@
           if (ty < MAP - 1 && tiles[i + MAP] === T_ROAD) g.fillRect(px, py + TILE - 2, TILE, 2);
           if (tx > 0 && tiles[i - 1] === T_ROAD) g.fillRect(px, py, 2, TILE);
           if (tx < MAP - 1 && tiles[i + 1] === T_ROAD) g.fillRect(px + TILE - 2, py, 2, TILE);
+          let walls = 0;
+          if (tx > 0 && tiles[i - 1] === T_BUILD) walls += 1;
+          if (tx < MAP - 1 && tiles[i + 1] === T_BUILD) walls += 1;
+          if (ty > 0 && tiles[i - MAP] === T_BUILD) walls += 1;
+          if (ty < MAP - 1 && tiles[i + MAP] === T_BUILD) walls += 1;
+          if (walls >= 2) {
+            g.fillStyle = 'rgba(18, 14, 24, 0.34)';
+            g.fillRect(px, py, TILE, TILE);
+            g.fillStyle = '#4a4038';
+            g.fillRect(px + 3, py + 9, 8, 2);
+          }
         } else if (type === T_BUILD) {
           g.fillStyle = '#16141e';
           g.fillRect(px, py, TILE, TILE);
@@ -895,6 +913,13 @@
           if (hash(tx, ty) % 5 === 0 && type === T_GRASS) {
             g.fillStyle = hash(tx, ty) % 2 ? '#ff4d8d' : '#ffe14a';
             g.fillRect(px + 3 + (hash(tx, ty) % 8), py + 3 + (hash(ty, tx) % 8), 2, 2);
+          }
+          if (type === T_GRASS && hash(tx, ty) % 37 === 0) {
+            g.fillStyle = '#c8b89a';
+            g.fillRect(px + 2, py + 6, 12, 3);
+            g.fillStyle = '#6a4428';
+            g.fillRect(px + 3, py + 9, 2, 4);
+            g.fillRect(px + 11, py + 9, 2, 4);
           }
         } else if (type === T_LOT) {
           g.fillStyle = '#3a3848';
@@ -1754,6 +1779,30 @@
     }
   }
 
+  function arcBit(x, y, color, n) {
+    if (particles.length > 180) return;
+    for (let i = 0; i < n; i++) {
+      particles.push({
+        x: x + (Math.random() * 6 - 3),
+        y: y,
+        vx: (Math.random() - 0.5) * 80,
+        vy: -(36 + Math.random() * 90),
+        grav: 260,
+        life: 0.4 + Math.random() * 0.35,
+        max: 0.75,
+        color: color,
+        size: 1 + ((Math.random() * 2) | 0),
+      });
+    }
+  }
+
+  function comicBurst(x, y) {
+    burst(x, y - 6, '#fff6c8', 4);
+    burst(x, y - 10, '#ffe14a', 3);
+    burst(x, y, '#ffffff', 3);
+    arcBit(x, y, '#d8d4e0', 3);
+  }
+
   function muzzle(x, y, ang, color) {
     if (flashes.length > 28) flashes.shift();
     flashes.push({ x: x, y: y, ang: ang, color: color, life: 0.07, max: 0.07 });
@@ -1862,6 +1911,109 @@
       sfx.hit();
     }
     if (e.hp <= 0) killEnemy(e);
+    else e.hit = 0.16;
+  }
+
+  function downFolk(f) {
+    if (!f.alive) return;
+    f.alive = false;
+    f.dying = 0.85;
+    f.dieMax = 0.85;
+    f.panic = 0;
+    comicBurst(f.x, f.y);
+    addHeat();
+  }
+
+  function hurtFolk(f, dmg, sx, sy) {
+    if (!f || !f.alive || state !== 'play') return;
+    f.hp -= dmg;
+    f.flash = 0.1;
+    f.hit = 0.16;
+    f.comic = 0.4;
+    const dx = f.x - sx;
+    const dy = f.y - sy;
+    const len = Math.hypot(dx, dy) || 1;
+    f.kvx += (dx / len) * 150;
+    f.kvy += (dy / len) * 150;
+    f.panic = 1.5;
+    f.vx = (dx / len) * 86;
+    f.vy = (dy / len) * 86;
+    comicBurst(f.x, f.y - 4);
+    if (globalTime - sfx.hitAt > 0.04) {
+      sfx.hitAt = globalTime;
+      sfx.hit();
+    }
+    if (f.hp <= 0) downFolk(f);
+  }
+
+  function addHeat() {
+    wanted += 1;
+    if (wanted < 4 || wantedCool > 0 || state !== 'play') return;
+    wantedCool = 16;
+    wanted = Math.max(0, wanted - 2);
+    banner.textContent = 'HEAT IS UP — MORE COPS';
+    banner.hidden = false;
+    banner.classList.remove('pop');
+    void banner.offsetWidth;
+    banner.classList.add('pop');
+    bannerTimer = 2.4;
+    const extra = 2;
+    for (let i = 0; i < extra; i++) {
+      if (livingCount() >= MAX_ENEMIES) break;
+      const spot = randomSpawnPoint();
+      if (spot) enemies.push(makeEnemy('cop', spot.x, spot.y));
+    }
+  }
+
+  function shoveTraffic(x, y, radius, power) {
+    for (let i = 0; i < traffic.length; i++) {
+      const c = traffic[i];
+      const dx = c.x - x;
+      const dy = c.y - y;
+      const reach = radius + (c.radius || 12);
+      if (dx * dx + dy * dy > reach * reach) continue;
+      const len = Math.hypot(dx, dy) || 1;
+      c.shoveX = (c.shoveX || 0) + (dx / len) * power;
+      c.shoveY = (c.shoveY || 0) + (dy / len) * power;
+      c.braking = 0.5;
+    }
+  }
+
+  function hurtStreet(p, dmg, sx, sy) {
+    if (!p || !p.alive) return;
+    p.hp -= dmg;
+    p.hit = 0.12;
+    const dx = p.x - sx;
+    const dy = p.y - sy;
+    const len = Math.hypot(dx, dy) || 1;
+    p.vx += (dx / len) * 70;
+    p.vy += (dy / len) * 70;
+    p.ang += (dx > 0 ? 0.4 : -0.4);
+    if (p.hp > 0) {
+      burst(p.x, p.y, '#fff6c8', 3);
+      return;
+    }
+    p.alive = false;
+    p.dying = 0.7;
+    if (p.kind === 'hydrant') {
+      p.spray = 1.5;
+      arcBit(p.x, p.y - 8, '#9eecff', 8);
+      arcBit(p.x, p.y - 6, '#5ce1e6', 6);
+    } else if (p.kind === 'bin') {
+      arcBit(p.x, p.y, '#8aaa70', 4);
+      arcBit(p.x, p.y, '#c8b89a', 4);
+      puff(p.x, p.y, 4);
+    } else {
+      arcBit(p.x, p.y, '#ff8a3d', 3);
+      comicBurst(p.x, p.y);
+    }
+  }
+
+  function overlapCircle(ax, ay, ar, bx, by, br) {
+    const dx = ax - bx;
+    const dy = ay - by;
+    const reach = ar + br;
+    return dx * dx + dy * dy <= reach * reach;
   }
 
   function hurtPlayer(amount, srcx, srcy) {
@@ -1933,6 +2085,17 @@
       const reach = radius + e.radius;
       if (dx * dx + dy * dy <= reach * reach) hurtEnemy(e, dmg, x, y);
     }
+    for (let i = 0; i < folk.length; i++) {
+      const f = folk[i];
+      if (!f.alive) continue;
+      if (overlapCircle(f.x, f.y, f.radius, x, y, radius)) hurtFolk(f, dmg, x, y);
+    }
+    for (let i = 0; i < street.length; i++) {
+      const p = street[i];
+      if (!p.alive) continue;
+      if (overlapCircle(p.x, p.y, p.radius, x, y, radius)) hurtStreet(p, Math.max(1, dmg * 0.5), x, y);
+    }
+    shoveTraffic(x, y, radius, 120);
   }
 
   function nearest(n, maxDist) {
@@ -2009,7 +2172,17 @@
     }
     player.kvx *= Math.exp(-12 * dt);
     player.kvy *= Math.exp(-12 * dt);
-    moveBody(player, (m.x * speedStat() + player.kvx) * dt, (m.y * speedStat() + player.kvy) * dt);
+    const wishX = m.x * speedStat();
+    const wishY = m.y * speedStat();
+    const accel = (m.x || m.y) ? 10 : 14;
+    const blend = 1 - Math.exp(-accel * dt);
+    player.vx += (wishX - player.vx) * blend;
+    player.vy += (wishY - player.vy) * blend;
+    if (!m.x && !m.y && Math.hypot(player.vx, player.vy) < 8) {
+      player.vx = 0;
+      player.vy = 0;
+    }
+    moveBody(player, (player.vx + player.kvx) * dt, (player.vy + player.kvy) * dt);
   }
 
   function updateWeapons(dt) {
@@ -2043,6 +2216,7 @@
         player.castKind = 'crystal';
         setDir(player, ax, ay);
         sfx.shoot(820);
+        arcBit(player.x, player.y, '#e6c14a', 1);
         const base = Math.atan2(targets[0].y - player.y, targets[0].x - player.x);
         muzzle(player.x + Math.cos(base) * 8, player.y - 2 + Math.sin(base) * 8, base, '#fff6b0');
         for (let i = 0; i < count; i++) {
@@ -2088,6 +2262,24 @@
           if (dx * dx + dy * dy <= reach * reach) {
             e.cartT = globalTime;
             hurtEnemy(e, cartDmg(), x, y);
+          }
+        }
+        for (let k = 0; k < folk.length; k++) {
+          const f = folk[k];
+          if (!f.alive) continue;
+          if (globalTime - (f.cartT || 0) < 0.42) continue;
+          if (overlapCircle(f.x, f.y, f.radius, x, y, 14)) {
+            f.cartT = globalTime;
+            hurtFolk(f, cartDmg(), x, y);
+          }
+        }
+        for (let k = 0; k < street.length; k++) {
+          const pr = street[k];
+          if (!pr.alive) continue;
+          if (globalTime - (pr.cartT || 0) < 0.42) continue;
+          if (overlapCircle(pr.x, pr.y, pr.radius, x, y, 12)) {
+            pr.cartT = globalTime;
+            hurtStreet(pr, cartDmg(), x, y);
           }
         }
       }
@@ -2181,6 +2373,57 @@
           break;
         }
       }
+      if (!p.alive) continue;
+      for (let k = 0; k < folk.length; k++) {
+        const f = folk[k];
+        if (!f.alive) continue;
+        if (p.seen && p.seen.has(f.id)) continue;
+        if (!overlapCircle(f.x, f.y, f.radius, p.x, p.y, p.r)) continue;
+        if (p.kind === 'bottle') {
+          p.alive = false;
+          sfx.noise(0.06, 0.04);
+          pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
+          break;
+        }
+        if (p.seen) p.seen.add(f.id);
+        hurtFolk(f, p.dmg, p.x, p.y);
+        if (p.seen && p.seen.size > p.pierce) {
+          p.alive = false;
+          break;
+        }
+      }
+      if (!p.alive) continue;
+      for (let k = 0; k < street.length; k++) {
+        const pr = street[k];
+        if (!pr.alive) continue;
+        if (p.seen && p.seen.has(pr.id)) continue;
+        if (!overlapCircle(pr.x, pr.y, pr.radius, p.x, p.y, p.r)) continue;
+        if (p.kind === 'bottle') {
+          p.alive = false;
+          sfx.noise(0.06, 0.04);
+          pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
+          break;
+        }
+        if (p.seen) p.seen.add(pr.id);
+        hurtStreet(pr, p.dmg, p.x, p.y);
+        if (p.seen && p.seen.size > p.pierce) p.alive = false;
+        break;
+      }
+      if (p.alive && p.kind !== 'bottle') nudgeTraffic(p.x, p.y, p.r + 8, 36);
+    }
+  }
+
+  function nudgeTraffic(x, y, radius, power) {
+    for (let i = 0; i < traffic.length; i++) {
+      const c = traffic[i];
+      if (globalTime - (c.nudgeT || 0) < 0.18) continue;
+      const dx = c.x - x;
+      const dy = c.y - y;
+      if (dx * dx + dy * dy > radius * radius) continue;
+      c.nudgeT = globalTime;
+      const len = Math.hypot(dx, dy) || 1;
+      c.shoveX = (c.shoveX || 0) + (dx / len) * power;
+      c.shoveY = (c.shoveY || 0) + (dy / len) * power;
     }
   }
 
@@ -2209,6 +2452,8 @@
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       e.flash = Math.max(0, e.flash - dt);
+      e.hit = Math.max(0, (e.hit || 0) - dt);
+      e.cast = Math.max(0, (e.cast || 0) - dt);
       if (e.dying > 0) {
         e.dying -= dt;
         if (e.dying < 0) e.dying = 0;
@@ -2241,6 +2486,7 @@
           e.lungeCd = 2.5;
           e.lx = nx;
           e.ly = ny;
+          e.cast = 0.16;
         }
       } else if (e.type === 'dealer') {
         if (dist < 88) {
@@ -2266,6 +2512,8 @@
             alive: true,
           });
           muzzle(e.x + nx * 8, e.y + ny * 6, Math.atan2(ny, nx), '#e2b6ff');
+          e.cast = 0.16;
+          arcBit(e.x, e.y, '#e6c14a', 1);
           sfx.shoot(210);
         }
       } else if (e.type === 'boss') {
@@ -2293,9 +2541,16 @@
 
       e.kvx *= Math.exp(-10 * dt);
       e.kvy *= Math.exp(-10 * dt);
+      if (e.mvx == null) {
+        e.mvx = vx;
+        e.mvy = vy;
+      }
+      const blend = 1 - Math.exp(-8 * dt);
+      e.mvx += (vx - e.mvx) * blend;
+      e.mvy += (vy - e.mvy) * blend;
       const beforeX = e.x;
       const beforeY = e.y;
-      moveBody(e, (vx + e.kvx) * dt, (vy + e.kvy) * dt);
+      moveBody(e, (e.mvx + e.kvx) * dt, (e.mvy + e.kvy) * dt);
       if (Math.abs(e.x - beforeX) + Math.abs(e.y - beforeY) < 0.2 && dist > 24) e.stuck += dt;
       else e.stuck = 0;
       if (e.stuck > 2.4) {
@@ -2307,8 +2562,8 @@
         }
       }
 
-      e.moving = Math.hypot(vx, vy) > 8;
-      setDir(e, vx || nx, vy || ny);
+      e.moving = Math.hypot(e.mvx, e.mvy) > 8;
+      setDir(e, e.mvx || nx, e.mvy || ny);
       const tx = player.x - e.x;
       const ty = player.y - e.y;
       const touch = player.radius + e.radius;
@@ -2364,9 +2619,15 @@
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= Math.exp(-2 * dt);
-      p.vy *= Math.exp(-2 * dt);
+      if (p.grav) {
+        p.vy += p.grav * dt;
+        p.vx *= Math.exp(-0.8 * dt);
+      } else {
+        p.vx *= Math.exp(-2 * dt);
+        p.vy *= Math.exp(-2 * dt);
+      }
     }
+    for (let i = 0; i < skids.length; i++) skids[i].life -= dt;
     for (let i = 0; i < waves.length; i++) waves[i].life -= dt;
     for (let i = 0; i < flashes.length; i++) flashes[i].life -= dt;
     for (let i = 0; i < barks.length; i++) {
@@ -2412,6 +2673,8 @@
     waves = waves.filter((w) => w.life > 0);
     flashes = flashes.filter((f) => f.life > 0);
     barks = barks.filter((b) => b.life > 0);
+    skids = skids.filter((s) => s.life > 0);
+    if (skids.length > 100) skids.splice(0, skids.length - 100);
   }
 
   function update(dt) {
@@ -2582,20 +2845,27 @@
   function actorFrame(ent) {
     const pose = ent.pose || 'down';
     const moving = ent === player ? player.moving : ent.moving !== false;
-    const rate = moving ? 10 : 0;
-    const frame = rate ? ((globalTime * rate + (ent.phase || 0)) | 0) % 6 : 0;
-    const cast = ent === player && player.cast > 0;
-    if (spr.cast && spr.cast[ent.type || 'player']) {
-      const pack = spr.cast[ent.type || 'player'];
-      const white = ent.flash > 0 && spr.flash && spr.flash[ent.type || 'player'];
+    const type = ent.type || 'player';
+    if (spr.cast && spr.cast[type]) {
+      const pack = spr.cast[type];
+      const white = ent.flash > 0 && spr.flash && spr.flash[type];
       const hot = ent.type === 'boss' && ent.mode === 'wind' && spr.bossHotCast;
-      const book = hot ? spr.bossHotCast : (white ? spr.flash[ent.type || 'player'] : pack.walk);
-      if (cast && pack.attack && pack.attack[pose]) {
-        const af = player.cast > 0.09 ? 0 : 1;
+      const book = hot ? spr.bossHotCast : (white ? spr.flash[type] : pack.walk);
+      if ((ent.cast > 0 || (ent === player && player.cast > 0)) && pack.attack && pack.attack[pose]) {
+        const left = ent === player ? player.cast : ent.cast;
+        const af = left > 0.09 ? 0 : 1;
         return pack.attack[pose][af] || pack.attack[pose][0];
       }
       const row = book[pose] || book.down;
-      return row[frame % row.length];
+      const n = row.length || 1;
+      let frame = 0;
+      if (moving) {
+        const fast = (ent.panic || 0) > 0 || (ent === player && Math.hypot(player.vx || 0, player.vy || 0) > 96);
+        frame = ((globalTime * (fast ? 14 : 10) + (ent.phase || 0)) | 0) % n;
+      } else {
+        frame = ((globalTime * 1.25 + (ent.phase || 0)) | 0) % 8 < 5 ? 0 : Math.min(4, n - 1);
+      }
+      return row[frame % n];
     }
     const len = ent.type === 'boss' ? spr.boss.length : (spr[ent.type] ? spr[ent.type].length : spr.player.length);
     return actorSprite(ent, ((globalTime * 8 + (ent.phase || 0)) | 0) % len);
@@ -2614,9 +2884,14 @@
     const dy = Math.round((ent.y - cam.y + breath) * drawScale) / drawScale;
     ctx.translate(dx, dy);
     if (spr.cast ? ent.flip : ent.facing < 0) ctx.scale(-1, 1);
+    if ((ent.hit || 0) > 0 && !(ent.dying > 0)) {
+      const k = Math.min(1, ent.hit / 0.16);
+      ctx.translate(-2 * k, -1 * k);
+      ctx.scale(1 + k * 0.12, Math.max(0.75, 1 - k * 0.16));
+    }
     if (ent.dying > 0) {
       const t = 1 - ent.dying / (ent.dieMax || 0.5);
-      ctx.rotate(t * 1.35);
+      ctx.rotate(t * 1.35 * (ent.panic != null || ent.type === 'civ' || (ent.type && ent.type.indexOf('civ') === 0) ? 1.15 : 1));
       ctx.scale(1 + t * 0.18, Math.max(0.2, 1 - t * 0.62));
       ctx.globalAlpha = Math.max(0, 1 - t * 0.9);
     } else if (ent.born > 0) {
@@ -2631,6 +2906,14 @@
     const dh = img.worldH || img.height;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
+    if ((ent.comic || 0) > 0 || (ent.panic || 0) > 0.2) {
+      const s = ((globalTime * 14 + (ent.phase || 0)) | 0) % 3;
+      ctx.fillStyle = '#ffe14a';
+      ctx.fillRect(-7, -dh - 3 - s, 2, 2);
+      ctx.fillRect(5, -dh - 6, 2, 2);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-1, -dh - 8 - (2 - s), 2, 2);
+    }
     if (ent === player && player.cast > 0) {
       const kind = player.castKind;
       const wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : spr.crystal;
@@ -2666,12 +2949,19 @@
 
   function makeFolk(x, y) {
     const ang = Math.random() * Math.PI * 2;
+    const looks = ['civ', 'civ2', 'civ3', 'civ4', 'civ5'];
+    let type = looks[(Math.random() * looks.length) | 0];
+    if (!spr.cast || !spr.cast[type]) type = 'civ';
     return {
-      type: 'civ',
+      id: nextId++,
+      type: type,
       x: x,
       y: y,
       vx: Math.cos(ang) * 22,
       vy: Math.sin(ang) * 22,
+      kvx: 0,
+      kvy: 0,
+      hp: 8,
       radius: 6,
       pose: 'down',
       flip: false,
@@ -2680,9 +2970,62 @@
       phase: Math.random() * 6,
       alive: true,
       flash: 0,
+      hit: 0,
+      comic: 0,
+      panic: 0,
+      cast: 0,
       born: 0,
       dying: 0,
+      dieMax: 0.85,
     };
+  }
+
+  function scareFolk(f) {
+    let sx = 0;
+    let sy = 0;
+    let threat = false;
+    if (player && (player.cast || 0) > 0) {
+      const dx = f.x - player.x;
+      const dy = f.y - player.y;
+      if (dx * dx + dy * dy < 130 * 130) {
+        sx = dx;
+        sy = dy;
+        threat = true;
+      }
+    }
+    if (!threat) {
+      for (let i = 0; i < shots.length; i++) {
+        const p = shots[i];
+        if (!p.alive) continue;
+        const dx = f.x - p.x;
+        const dy = f.y - p.y;
+        if (dx * dx + dy * dy < 78 * 78) {
+          sx = dx;
+          sy = dy;
+          threat = true;
+          break;
+        }
+      }
+    }
+    if (!threat) {
+      for (let i = 0; i < waves.length; i++) {
+        const w = waves[i];
+        const dx = f.x - w.x;
+        const dy = f.y - w.y;
+        const reach = (w.r || 40) + 20;
+        if (dx * dx + dy * dy < reach * reach) {
+          sx = dx;
+          sy = dy;
+          threat = true;
+          break;
+        }
+      }
+    }
+    if (!threat) return;
+    const len = Math.hypot(sx, sy) || 1;
+    f.panic = Math.max(f.panic || 0, 1.15);
+    f.vx = (sx / len) * 84;
+    f.vy = (sy / len) * 84;
   }
 
   function initAmbience() {
@@ -2724,7 +3067,43 @@
         img: img,
         spriteW: img.worldW || 36,
         spriteH: img.worldH || 72,
-        radius: 12,
+        radius: 14,
+        vel: 46 + (i % 4) * 6,
+        cruise: 46 + (i % 4) * 6,
+        braking: 0,
+        steer: 0,
+        shoveX: 0,
+        shoveY: 0,
+      });
+    }
+    street = [];
+    const propsWanted = 22;
+    for (let n = 0; street.length < propsWanted && n < 400; n++) {
+      const tx = 2 + ((n * 17) % (MAP - 4));
+      const ty = 2 + ((n * 29) % (MAP - 4));
+      if (tiles[ty * MAP + tx] !== T_SIDE) continue;
+      const x = (tx + 0.5) * TILE;
+      const y = (ty + 0.5) * TILE;
+      if (isSolid(x, y)) continue;
+      const kind = n % 3 === 0 ? 'hydrant' : n % 3 === 1 ? 'bin' : 'cone';
+      const img = kind === 'hydrant' ? spr.hydrant : kind === 'bin' ? spr.bin : spr.cone;
+      if (!img) continue;
+      street.push({
+        id: nextId++,
+        kind: kind,
+        x: x,
+        y: y,
+        vx: 0,
+        vy: 0,
+        hp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
+        maxHp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
+        radius: kind === 'cone' ? 4 : 6,
+        alive: true,
+        dying: 0,
+        ang: (n % 5) * 0.2,
+        spray: 0,
+        hit: 0,
+        img: img,
       });
     }
     for (let i = 0; i < fountains.length && pigeons.length < 5; i++) {
@@ -2745,31 +3124,65 @@
   function updateAmbience(dt) {
     if (!player) return;
     const quiet = quality === 'low' || reduceMotion;
-    const folkCap = quiet ? 4 : 12;
-    if (folk.length > folkCap) folk.length = folkCap;
-    if (!quiet && folk.length < folkCap && (fxFrame % 18) === 0) {
+    const folkCap = quiet ? 6 : 16;
+    let livingFolk = 0;
+    for (let i = 0; i < folk.length; i++) if (folk[i].alive) livingFolk += 1;
+    if (livingFolk < folkCap && (fxFrame % 18) === 0) {
       const spot = findSidewalk();
       if (spot) folk.push(makeFolk(spot.x, spot.y));
     }
-    for (let i = 0; i < folk.length; i++) {
+    for (let i = folk.length - 1; i >= 0; i--) {
       const f = folk[i];
+      f.flash = Math.max(0, (f.flash || 0) - dt);
+      f.hit = Math.max(0, (f.hit || 0) - dt);
+      f.comic = Math.max(0, (f.comic || 0) - dt);
+      f.panic = Math.max(0, (f.panic || 0) - dt);
+      f.kvx *= Math.exp(-8 * dt);
+      f.kvy *= Math.exp(-8 * dt);
+      if (f.dying > 0) {
+        f.dying -= dt;
+        moveBody(f, f.kvx * dt, f.kvy * dt);
+        if (f.dying <= 0) folk.splice(i, 1);
+        continue;
+      }
+      if (!f.alive) {
+        folk.splice(i, 1);
+        continue;
+      }
+      if (state === 'play') scareFolk(f);
+      f.pauseT = (f.pauseT == null ? 2.2 : f.pauseT) - dt;
+      const idling = f.panic <= 0 && f.pauseT < 0 && f.pauseT > -1.15;
+      if (idling) {
+        f.moving = false;
+        if (Math.hypot(f.kvx, f.kvy) > 4) moveBody(f, f.kvx * dt, f.kvy * dt);
+        continue;
+      }
+      if (f.pauseT <= -1.15) f.pauseT = 2.2 + Math.random() * 3.2;
+      const speed = f.panic > 0 ? 84 : 22;
+      const len = Math.hypot(f.vx, f.vy) || 1;
+      f.vx = (f.vx / len) * speed;
+      f.vy = (f.vy / len) * speed;
       const beforeX = f.x;
       const beforeY = f.y;
-      moveBody(f, f.vx * dt, f.vy * dt);
+      moveBody(f, (f.vx + f.kvx) * dt, (f.vy + f.kvy) * dt);
       if (Math.abs(f.x - beforeX) + Math.abs(f.y - beforeY) < 0.15) {
         const ang = Math.random() * Math.PI * 2;
-        f.vx = Math.cos(ang) * 22;
-        f.vy = Math.sin(ang) * 22;
+        f.vx = Math.cos(ang) * speed;
+        f.vy = Math.sin(ang) * speed;
       }
       const tx = (f.x / TILE) | 0;
       const ty = (f.y / TILE) | 0;
       if (tx < 0 || ty < 0 || tx >= MAP || ty >= MAP || tiles[ty * MAP + tx] !== T_SIDE) {
         f.vx = -f.vx;
         f.vy = -f.vy;
+        if (f.panic > 0) {
+          f.x = beforeX;
+          f.y = beforeY;
+        }
       }
       f.moving = true;
-      setDir(f, f.vx, f.vy);
-      if (Math.hypot(f.x - player.x, f.y - player.y) > Math.max(view.w, view.h)) {
+      setDir(f, f.vx + f.kvx, f.vy + f.kvy);
+      if (Math.hypot(f.x - player.x, f.y - player.y) > Math.max(view.w, view.h) * 1.2) {
         const spot = findSidewalk();
         if (spot) {
           f.x = spot.x;
@@ -2777,7 +3190,57 @@
         }
       }
     }
+    wantedCool = Math.max(0, wantedCool - dt);
+    if (wanted > 0 && (fxFrame % 240) === 0) wanted = Math.max(0, wanted - 1);
+    for (let i = street.length - 1; i >= 0; i--) {
+      const p = street[i];
+      p.hit = Math.max(0, (p.hit || 0) - dt);
+      p.vx *= Math.exp(-3 * dt);
+      p.vy *= Math.exp(-3 * dt);
+      if (p.spray > 0) {
+        p.spray -= dt;
+        if ((fxFrame & 1) === 0) arcBit(p.x, p.y - 8, (fxFrame & 2) ? '#9eecff' : '#5ce1e6', 2);
+      }
+      if (p.dying > 0) {
+        p.dying -= dt;
+        p.ang += dt * 4;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.dying <= 0) {
+          p.respawn = 8 + (i % 5);
+          p.dying = 0;
+        }
+        continue;
+      }
+      if (!p.alive) {
+        p.respawn = (p.respawn || 8) - dt;
+        if (p.respawn <= 0) {
+          p.alive = true;
+          p.hp = p.maxHp;
+          p.vx = 0;
+          p.vy = 0;
+          p.spray = 0;
+          p.ang = 0;
+        }
+        continue;
+      }
+      if (Math.hypot(p.vx, p.vy) > 6) {
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        if (!isSolid(nx, ny)) {
+          p.x = nx;
+          p.y = ny;
+          p.ang += p.vx * dt * 0.08;
+        } else {
+          p.vx *= -0.4;
+          p.vy *= -0.4;
+        }
+      }
+    }
     for (let i = 0; i < traffic.length; i++) steerTraffic(traffic[i], dt);
+    separateCast();
+    bumpCars();
+    bumpStreet();
     if (quiet) return;
     for (let i = 0; i < pigeons.length; i++) {
       const p = pigeons[i];
@@ -2821,6 +3284,45 @@
         });
       }
     }
+  }
+
+  function drawSkids() {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#16141c';
+    for (let i = 0; i < skids.length; i++) {
+      const s = skids[i];
+      if (!onScreen(s.x, s.y, 16)) continue;
+      ctx.globalAlpha = Math.max(0, s.life / s.max) * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(s.x - cam.x, s.y - cam.y);
+      ctx.lineTo(s.x2 - cam.x, s.y2 - cam.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawStreet(pr) {
+    const img = pr.img;
+    if (!img) return;
+    const dw = img.worldW || 10;
+    const dh = img.worldH || 14;
+    ctx.save();
+    ctx.translate(Math.round(pr.x - cam.x), Math.round(pr.y - cam.y));
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(1, 1, dw * 0.4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (pr.dying > 0) {
+      const t = 1 - pr.dying / 0.7;
+      ctx.rotate((pr.ang || 0) + t * 1.4);
+      ctx.globalAlpha = Math.max(0, 1 - t);
+    } else if (pr.ang) {
+      ctx.rotate(Math.max(-0.5, Math.min(0.5, pr.ang)));
+    }
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, -dw / 2, -dh + 2, dw, dh);
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   function drawPuddles() {
@@ -2923,32 +3425,147 @@
       if (bestD < 0.7 && isOpenRoad(car.x + Math.cos(best) * look, car.y + Math.sin(best) * look)) want = best;
     }
     car.turnCool = Math.max(0, (car.turnCool || 0) - dt);
-    let diff = Math.atan2(Math.sin(want - car.ang), Math.cos(want - car.ang));
+    const raw = Math.atan2(Math.sin(want - car.ang), Math.cos(want - car.ang));
+    car.steer = Math.max(-0.7, Math.min(0.7, raw));
     const maxTurn = 2.6 * dt;
+    let diff = raw;
     if (diff > maxTurn) diff = maxTurn;
     if (diff < -maxTurn) diff = -maxTurn;
     car.ang += diff;
-    const nx = car.x + Math.cos(car.ang) * car.speed * dt;
-    const ny = car.y + Math.sin(car.ang) * car.speed * dt;
-    if (isOpenRoad(nx, ny)) {
+    const cruise = car.cruise || car.speed || 48;
+    if (car.vel == null) car.vel = cruise;
+    if (Math.abs(raw) > 0.55) car.braking = 0.34;
+    else car.braking = Math.max(0, (car.braking || 0) - dt);
+    const target = (car.braking || 0) > 0.04 ? cruise * 0.3 : cruise;
+    car.vel += (target - car.vel) * (1 - Math.exp(-2.6 * dt));
+    car.shoveX = (car.shoveX || 0) * Math.exp(-2.4 * dt);
+    car.shoveY = (car.shoveY || 0) * Math.exp(-2.4 * dt);
+    const shoved = Math.hypot(car.shoveX, car.shoveY) > 28;
+    const nx = car.x + Math.cos(car.ang) * car.vel * dt + car.shoveX * dt;
+    const ny = car.y + Math.sin(car.ang) * car.vel * dt + car.shoveY * dt;
+    if (isOpenRoad(nx, ny) || shoved) {
+      if ((car.braking || 0) > 0.04 || shoved) dropSkid(car);
       car.x = nx;
       car.y = ny;
     } else {
       car.ang += 1.4 * dt;
+      car.braking = 0.28;
+      car.vel *= 0.9;
+    }
+    if (!isOpenRoad(car.x, car.y)) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        if (!isOpenRoad(car.x + Math.cos(a) * 20, car.y + Math.sin(a) * 20)) continue;
+        car.ang = a;
+        car.x += Math.cos(a) * 24 * dt;
+        car.y += Math.sin(a) * 24 * dt;
+        break;
+      }
     }
     if (car.x < 40) car.x = WORLD - 50;
     if (car.x > WORLD - 40) car.x = 50;
     if (car.y < 40) car.y = WORLD - 50;
     if (car.y > WORLD - 40) car.y = 50;
-    car.vx = Math.cos(car.ang) * car.speed;
-    car.vy = Math.sin(car.ang) * car.speed;
-    if (state === 'play' && player) {
-      const dx = player.x - car.x;
-      const dy = player.y - car.y;
-      const reach = 16 + player.radius;
-      if (dx * dx + dy * dy < reach * reach) {
-        const len = Math.hypot(dx, dy) || 1;
-        moveBody(player, (dx / len) * 36 * dt, (dy / len) * 36 * dt);
+    car.speed = car.vel;
+    car.vx = Math.cos(car.ang) * car.vel;
+    car.vy = Math.sin(car.ang) * car.vel;
+  }
+
+  function dropSkid(car) {
+    if ((fxFrame & 1) !== 0) return;
+    if (skids.length > 96) return;
+    skids.push({
+      x: car.x - Math.cos(car.ang) * 12,
+      y: car.y - Math.sin(car.ang) * 12,
+      x2: car.x - Math.cos(car.ang) * 4,
+      y2: car.y - Math.sin(car.ang) * 4,
+      life: 1.35,
+      max: 1.35,
+    });
+  }
+
+  function separateCast() {
+    const list = [];
+    if (player && player.hp > 0) list.push(player);
+    for (let i = 0; i < enemies.length; i++) {
+      if (enemies[i].alive && enemies[i].born <= 0) list.push(enemies[i]);
+    }
+    for (let i = 0; i < folk.length; i++) if (folk[i].alive) list.push(folk[i]);
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i];
+        const b = list[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const min = (a.radius + b.radius) * 0.72;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= min || dist < 0.01) continue;
+        const push = Math.min(4, (min - dist) * 0.5);
+        const nx = dx / dist;
+        const ny = dy / dist;
+        moveBody(a, -nx * push, -ny * push);
+        moveBody(b, nx * push, ny * push);
+      }
+    }
+  }
+
+  function bumpCars() {
+    const list = [];
+    if (player && player.hp > 0) list.push(player);
+    for (let i = 0; i < enemies.length; i++) if (enemies[i].alive) list.push(enemies[i]);
+    for (let i = 0; i < folk.length; i++) if (folk[i].alive) list.push(folk[i]);
+    for (let c = 0; c < traffic.length; c++) {
+      const car = traffic[c];
+      const cos = Math.cos(-(car.ang + Math.PI / 2));
+      const sin = Math.sin(-(car.ang + Math.PI / 2));
+      const hw = (car.spriteW || 36) * 0.4;
+      const hh = (car.spriteH || 72) * 0.42;
+      for (let i = 0; i < list.length; i++) {
+        const body = list[i];
+        const dx = body.x - car.x;
+        const dy = body.y - car.y;
+        const lx = dx * cos - dy * sin;
+        const ly = dx * sin + dy * cos;
+        const penX = hw + 2 - Math.abs(lx);
+        const penY = hh + 2 - Math.abs(ly);
+        if (penX <= 0 || penY <= 0) continue;
+        let px = 0;
+        let py = 0;
+        if (penX < penY) px = Math.min(6, penX) * (lx < 0 ? -1 : 1);
+        else py = Math.min(6, penY) * (ly < 0 ? -1 : 1);
+        const wx = px * cos + py * sin;
+        const wy = -px * sin + py * cos;
+        moveBody(body, wx, wy);
+        if (body.kvx != null && Math.abs(wx) + Math.abs(wy) > 2) {
+          body.kvx += wx * 3;
+          body.kvy += wy * 3;
+        }
+      }
+    }
+  }
+
+  function bumpStreet() {
+    const list = [];
+    if (player && player.hp > 0) list.push(player);
+    for (let i = 0; i < enemies.length; i++) if (enemies[i].alive) list.push(enemies[i]);
+    for (let i = 0; i < folk.length; i++) if (folk[i].alive) list.push(folk[i]);
+    for (let s = 0; s < street.length; s++) {
+      const pr = street[s];
+      if (!pr.alive) continue;
+      for (let i = 0; i < list.length; i++) {
+        const body = list[i];
+        const dx = pr.x - body.x;
+        const dy = pr.y - body.y;
+        const min = pr.radius + body.radius;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= min || dist < 0.01) continue;
+        const push = Math.min(3, min - dist);
+        const nx = dx / dist;
+        const ny = dy / dist;
+        pr.vx += nx * 40;
+        pr.vy += ny * 40;
+        pr.ang += nx * 0.2;
+        moveBody(body, -nx * push, -ny * push);
       }
     }
   }
@@ -2970,6 +3587,21 @@
     ctx.fill();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(spec.img, -dw / 2, -dh / 2, dw, dh);
+    const steer = spec.steer || 0;
+    if (steer) {
+      ctx.save();
+      ctx.translate(-dw * 0.28, -dh * 0.32);
+      ctx.rotate(steer);
+      ctx.fillStyle = '#120e14';
+      ctx.fillRect(-2, -4, 4, 7);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(dw * 0.28, -dh * 0.32);
+      ctx.rotate(steer);
+      ctx.fillStyle = '#120e14';
+      ctx.fillRect(-2, -4, 4, 7);
+      ctx.restore();
+    }
     if (spec.model === 'police') {
       const flash = ((globalTime * 9) | 0) % 2;
       ctx.fillStyle = flash ? '#ff2a3a' : '#3d6bff';
@@ -2983,10 +3615,12 @@
     ctx.fillStyle = '#fff6c8';
     ctx.fillRect(-dw * 0.32, -dh * 0.48, dw * 0.18, dh * 0.045);
     ctx.fillRect(dw * 0.14, -dh * 0.48, dw * 0.18, dh * 0.045);
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = '#ff3355';
-    ctx.fillRect(-dw * 0.34, dh * 0.42, dw * 0.2, dh * 0.04);
-    ctx.fillRect(dw * 0.14, dh * 0.42, dw * 0.2, dh * 0.04);
+    const braking = (spec.braking || 0) > 0.04;
+    ctx.globalAlpha = braking ? 1 : 0.72;
+    ctx.fillStyle = braking ? '#ff2030' : '#ff3355';
+    const tail = braking ? dh * 0.07 : dh * 0.04;
+    ctx.fillRect(-dw * 0.34, dh * 0.42, dw * 0.2, tail);
+    ctx.fillRect(dw * 0.14, dh * 0.42, dw * 0.2, tail);
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -3083,6 +3717,7 @@
       ctx.drawImage(mapCanvas, sx, sy, sw, sh, ox, oy, sw, sh);
     }
     drawPuddles();
+    drawSkids();
 
     const queue = [];
     for (let i = 0; i < props.length; i++) {
@@ -3113,6 +3748,11 @@
     for (let i = 0; i < traffic.length; i++) {
       if (onScreen(traffic[i].x, traffic[i].y, 80)) queue.push(traffic[i].y, i, 5);
     }
+    for (let i = 0; i < street.length; i++) {
+      const pr = street[i];
+      if (!pr.alive && !(pr.dying > 0) && !(pr.spray > 0)) continue;
+      if (onScreen(pr.x, pr.y, 24)) queue.push(pr.y, i, 6);
+    }
     const order = [];
     for (let i = 0; i < queue.length; i += 3) order.push(i);
     order.sort((a, b) => queue[a] - queue[b]);
@@ -3121,6 +3761,7 @@
       const kind = queue[i + 2];
       const idx = queue[i + 1];
       if (kind === 0) drawProp(props[idx]);
+      else if (kind === 6) drawStreet(street[idx]);
       else if (kind === 4) drawActor(folk[idx]);
       else if (kind === 5) drawTraffic(traffic[idx]);
       else if (kind === 1) {
@@ -3755,6 +4396,8 @@
       hpLv: 0,
       kvx: 0,
       kvy: 0,
+      vx: 0,
+      vy: 0,
       pose: 'down',
       flip: false,
       cast: 0,
@@ -3938,6 +4581,19 @@
     moved = false;
     bannerTimer = 0;
     banner.hidden = true;
+    wanted = 0;
+    wantedCool = 0;
+    skids = [];
+    for (let i = 0; i < street.length; i++) {
+      const pr = street[i];
+      pr.alive = true;
+      pr.hp = pr.maxHp;
+      pr.dying = 0;
+      pr.spray = 0;
+      pr.vx = 0;
+      pr.vy = 0;
+      pr.ang = 0;
+    }
     aimX = 1;
     aimY = 0;
     choosing = false;
