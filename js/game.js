@@ -1416,6 +1416,7 @@
     props = [];
     signs = [];
     fountains = [];
+    carClaim.fill(0);
     treeSprite = makeTreeSprite();
     lampSprite = makeLampSprite();
     fountainSprite = makeFountainSprite();
@@ -1430,6 +1431,50 @@
         if (kind === 3) {
           const pal = BUILDINGS[hash(bx, by) % BUILDINGS.length];
           const seed = hash(bx + 9, by + 4);
+          const town = window.GTAIsoTown;
+          const pieces = town && town.ready ? town.pieces(seed) : null;
+          if (pieces) {
+            const foot = y0 + 100;
+            const neon = NEONS[seed % NEONS.length];
+            props.push({
+              img: pieces.left,
+              w: 64,
+              h: 96,
+              x: x0,
+              sortY: foot,
+              shadowW: 48,
+              shadowH: 10,
+              lights: [{ x: x0 + 32, y: foot - 36, r: 28, color: pal.win }],
+              kind: 'iso',
+            });
+            props.push({
+              img: pieces.right,
+              w: 64,
+              h: 96,
+              x: x0 + 64,
+              sortY: foot,
+              shadowW: 48,
+              shadowH: 10,
+              lights: [{ x: x0 + 96, y: foot - 28, r: 36, color: neon }],
+              kind: 'iso',
+            });
+            if (pieces.roof) {
+              props.push({
+                img: pieces.roof,
+                w: 144,
+                h: 92,
+                x: x0 - 8,
+                sortY: y0 + 24,
+                shadowW: 72,
+                shadowH: 8,
+                lights: [],
+                kind: 'iso',
+              });
+            }
+            addLamp(x0 - 14, foot + 6);
+            addLamp(x0 + fw + 2, foot + 6);
+            continue;
+          }
           const built = makeBuildingSprite(fw, fh, pal, seed);
           const left = x0 - built.eaves;
           const sortY = y0 + fh;
@@ -4466,7 +4511,7 @@
         }
         continue;
       }
-      if (pr.kind === 'build') {
+      if (pr.kind === 'build' || pr.kind === 'iso') {
         for (let k = 0; k < pr.lights.length; k++) {
           const L = pr.lights[k];
           g.fillStyle = L.color;
@@ -5254,6 +5299,10 @@
 
   resize();
   buildSprites();
+  window.GTARebuildTown = function () {
+    if (!tiles) return;
+    buildProps();
+  };
   buildMap();
   beginRun(false);
   requestAnimationFrame(loop);

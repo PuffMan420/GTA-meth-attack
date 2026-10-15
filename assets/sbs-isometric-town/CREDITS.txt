@@ -1,0 +1,25 @@
+SBS - Isometric Town Pack
+by Screaming Brain Studios
+https://screamingbrainstudios.itch.io/iso-town-pack
+
+License: CC0 1.0 Universal (public domain)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The pack is free (name your own price, including $0). The author says
+credit is not required. This note is here anyway.
+
+Files in this folder:
+- buildings-1.png, buildings-2.png, buildings-3.png
+  The three building sheets. Each tile is 64 by 96 pixels.
+  18 columns and 8 rows, 144 tiles per sheet.
+- roofs.png
+  The roof sheet. Each tile is 144 by 92 pixels.
+  3 columns and 4 rows. The last cell is empty, so there are 11 roofs.
+
+The flat teal backdrop (red 0, green 128, blue 128) was made transparent
+so the tiles can sit on the city. The pictures are otherwise unchanged.
+
+The download is "SBS - Isometric Town Pack.rar". That archive also has a
+License.txt. The copy here could not be unpacked (the compressor method
+is not supported), so the original license wording is not included.
+The download page says the pack is CC0.
