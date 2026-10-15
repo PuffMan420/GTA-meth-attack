@@ -165,6 +165,9 @@
   let slowStreak = 0;
   let fastStreak = 0;
   let lightCanvas = null;
+  let lightMask = null;
+  let dofGrad = null;
+  let bloomLive = 0;
   let cityGlow = null;
   let cityGlowQ = null;
   let bloomHalf = null;
@@ -1672,9 +1675,11 @@
       vignette = null;
       vignetteKey = '';
       lightCanvas = null;
+      lightMask = null;
       bloomHalf = null;
       bloomQuarter = null;
       dofCanvas = null;
+      dofGrad = null;
     }
     canvas.style.width = (w * pixel) + 'px';
     canvas.style.height = (h * pixel) + 'px';
@@ -4195,59 +4200,118 @@
     if (quality === 'high') paintEdgeBlur();
   }
 
+  const spriteCache = {};
+
+  function punchSprite(radius) {
+    const r = Math.max(8, (Math.round(radius / 4) * 4) | 0);
+    const key = 'p' + r;
+    let c = spriteCache[key];
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = r * 2;
+    c.height = r * 2;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(r, r, r * 0.08, r, r, r);
+    grad.addColorStop(0, 'rgba(0,0,0,0.72)');
+    grad.addColorStop(0.4, 'rgba(0,0,0,0.28)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, c.width, c.height);
+    spriteCache[key] = c;
+    return c;
+  }
+
+  function bloomSprite(color) {
+    const key = 'b' + color;
+    let c = spriteCache[key];
+    if (c) return c;
+    const r = 16;
+    const n = parseInt(String(color).slice(1), 16);
+    const rr = (n >> 16) & 255;
+    const gg = (n >> 8) & 255;
+    const bb = n & 255;
+    c = document.createElement('canvas');
+    c.width = 32;
+    c.height = 32;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(r, r, 1, r, r, r);
+    grad.addColorStop(0, 'rgba(' + rr + ',' + gg + ',' + bb + ',0.7)');
+    grad.addColorStop(0.45, 'rgba(' + rr + ',' + gg + ',' + bb + ',0.2)');
+    grad.addColorStop(1, 'rgba(' + rr + ',' + gg + ',' + bb + ',0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 32, 32);
+    spriteCache[key] = c;
+    return c;
+  }
+
   function collectLights() {
     const list = [];
-    if (player) list.push({ x: player.x, y: player.y - 8, r: 72, color: '#ffe1b0' });
-    for (let i = 0; i < props.length; i++) {
+    const cap = quality === 'low' ? 8 : 14;
+    const push = (x, y, r, color) => {
+      if (list.length >= cap) return;
+      if (!onScreen(x, y, r)) return;
+      list.push({ x: x, y: y, r: r, color: color });
+    };
+    if (player) push(player.x, player.y - 8, 72, '#ffe1b0');
+    for (let i = 0; i < props.length && list.length < cap; i++) {
       const pr = props[i];
       if (!pr.lights || !pr.lights.length) continue;
       if (!propOnScreen(pr)) continue;
-      for (let k = 0; k < pr.lights.length; k++) list.push(pr.lights[k]);
-    }
-    const gemCap = quality === 'low' ? 0 : 6;
-    let gemsLit = 0;
-    for (let i = 0; i < gems.length && gemsLit < gemCap; i++) {
-      const g = gems[i];
-      if (!g.alive || !onScreen(g.x, g.y, 10)) continue;
-      list.push({ x: g.x, y: g.y, r: 28, color: g.value >= 8 ? '#9eecff' : '#e2b6ff' });
-      gemsLit++;
+      for (let k = 0; k < pr.lights.length && list.length < cap; k++) {
+        const L = pr.lights[k];
+        push(L.x, L.y, L.r || 28, L.color || '#ffe7a8');
+      }
     }
     if (quality !== 'low') {
-      for (let i = 0; i < flashes.length; i++) {
+      let gemsLit = 0;
+      for (let i = 0; i < gems.length && gemsLit < 4 && list.length < cap; i++) {
+        const g = gems[i];
+        if (!g.alive || !onScreen(g.x, g.y, 10)) continue;
+        push(g.x, g.y, 26, g.value >= 8 ? '#9eecff' : '#e2b6ff');
+        gemsLit += 1;
+      }
+      let flashesLit = 0;
+      for (let i = 0; i < flashes.length && flashesLit < 4 && list.length < cap; i++) {
         const f = flashes[i];
-        if (f.life > 0) list.push({ x: f.x, y: f.y, r: 42, color: f.color });
+        if (f.life <= 0 || !onScreen(f.x, f.y, 16)) continue;
+        push(f.x, f.y, 36, f.color || '#fff6b0');
+        flashesLit += 1;
       }
     }
     return list;
   }
 
   function paintGrade() {
-    const cap = quality === 'low' ? 8 : 16;
-    const lights = collectLights();
-    if (!lightCanvas) {
+    if (!lightCanvas || lightCanvas.width !== view.w || lightCanvas.height !== view.h) {
       lightCanvas = document.createElement('canvas');
       lightCanvas.width = view.w;
       lightCanvas.height = view.h;
+      lightMask = document.createElement('canvas');
+      lightMask.width = view.w;
+      lightMask.height = view.h;
     }
+    const lights = collectLights();
     const l = lightCanvas.getContext('2d');
+    l.setTransform(1, 0, 0, 1, 0, 0);
     l.globalCompositeOperation = 'source-over';
+    l.globalAlpha = 1;
     l.clearRect(0, 0, view.w, view.h);
     l.fillStyle = quality === 'low' ? 'rgba(8, 10, 24, 0.34)' : 'rgba(6, 8, 22, 0.48)';
     l.fillRect(0, 0, view.w, view.h);
-    l.globalCompositeOperation = 'destination-out';
-    const n = Math.min(cap, lights.length);
-    const steps = quality === 'low' ? 2 : 3;
-    for (let i = 0; i < n; i++) {
+    const m = lightMask.getContext('2d');
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.globalCompositeOperation = 'source-over';
+    m.globalAlpha = 1;
+    m.clearRect(0, 0, view.w, view.h);
+    m.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < lights.length; i++) {
       const L = lights[i];
-      const sx = L.x - cam.x;
-      const sy = L.y - cam.y;
-      for (let s = steps; s >= 1; s--) {
-        l.fillStyle = 'rgba(0,0,0,' + (0.45 + 0.45 * (s / steps)) + ')';
-        l.beginPath();
-        l.arc(sx, sy, L.r * (s / steps), 0, Math.PI * 2);
-        l.fill();
-      }
+      const spr = punchSprite(L.r);
+      const d = spr.width;
+      m.drawImage(spr, L.x - cam.x - d * 0.5, L.y - cam.y - d * 0.5);
     }
+    l.globalCompositeOperation = 'destination-out';
+    l.drawImage(lightMask, 0, 0);
     l.globalCompositeOperation = 'source-over';
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(lightCanvas, 0, 0);
@@ -4448,7 +4512,7 @@
     extractBright(c);
     fattenGlow(c);
     blurCanvas(c, 6);
-    gainAlpha(c, 2.6);
+    gainAlpha(c, 2.1, 132);
     cityGlow = c;
     const q = document.createElement('canvas');
     q.width = w >> 1;
@@ -4456,7 +4520,7 @@
     const qg = q.getContext('2d');
     qg.drawImage(c, 0, 0, q.width, q.height);
     blurCanvas(q, 8);
-    gainAlpha(q, 1.7);
+    gainAlpha(q, 1.45, 108);
     cityGlowQ = q;
   }
 
@@ -4483,14 +4547,24 @@
     g.globalCompositeOperation = 'source-over';
   }
 
-  function gainAlpha(canvas, gain) {
+  function gainAlpha(canvas, gain, cap) {
     const g = canvas.getContext('2d');
     const img = g.getImageData(0, 0, canvas.width, canvas.height);
     const d = img.data;
+    const ceil = cap || 255;
     for (let i = 3; i < d.length; i += 4) {
       if (d[i] === 0) continue;
-      const boosted = d[i] * gain;
+      let boosted = d[i] * gain;
+      if (boosted > ceil) boosted = ceil + (boosted - ceil) * 0.22;
+      if (boosted > ceil + 36) boosted = ceil + 36;
       d[i] = boosted > 255 ? 255 : boosted;
+      if (cap) {
+        for (let c = i - 3; c < i; c++) {
+          let v = d[c];
+          if (v > 188) v = 188 + (v - 188) * 0.35;
+          d[c] = v > 230 ? 230 : v;
+        }
+      }
     }
     g.putImageData(img, 0, 0);
   }
@@ -4524,44 +4598,48 @@
     const low = quality === 'low';
     if (!low || (fxFrame & 1) === 0) {
       const b = bloomHalf.getContext('2d');
+      b.setTransform(1, 0, 0, 1, 0, 0);
+      b.imageSmoothingEnabled = true;
       b.clearRect(0, 0, bw, bh);
       b.globalCompositeOperation = 'lighter';
       const cap = low ? 4 : 8;
       let n = 0;
+      const stamp = (x, y, color, alpha, rad) => {
+        if (n >= cap || !onScreen(x, y, 16)) return;
+        n += 1;
+        const spr = bloomSprite(color);
+        b.globalAlpha = alpha;
+        b.drawImage(spr, (x - cam.x) * 0.5 - rad, (y - cam.y) * 0.5 - rad, rad * 2, rad * 2);
+      };
       for (let i = 0; i < gems.length && n < cap; i++) {
         const gem = gems[i];
-        if (!gem.alive || !onScreen(gem.x, gem.y, 12)) continue;
-        n += 1;
-        b.fillStyle = gem.value >= 8 ? '#9eecff' : gem.value >= 3 ? '#ffe14a' : '#e2b6ff';
-        b.globalAlpha = 0.95;
-        b.beginPath();
-        b.arc((gem.x - cam.x) * 0.5, (gem.y - cam.y) * 0.5, 5, 0, Math.PI * 2);
-        b.fill();
+        if (!gem.alive) continue;
+        const color = gem.value >= 8 ? '#9eecff' : gem.value >= 3 ? '#ffe14a' : '#e2b6ff';
+        stamp(gem.x, gem.y, color, 0.62, low ? 8 : 11);
       }
-      for (let i = 0; i < flashes.length; i++) {
+      for (let i = 0; i < flashes.length && n < cap; i++) {
         const f = flashes[i];
-        if (f.life <= 0 || !onScreen(f.x, f.y, 16)) continue;
-        b.fillStyle = f.color;
-        b.globalAlpha = Math.max(0.35, f.life / f.max);
-        b.beginPath();
-        b.arc((f.x - cam.x) * 0.5, (f.y - cam.y) * 0.5, 6.5, 0, Math.PI * 2);
-        b.fill();
+        if (f.life <= 0) continue;
+        stamp(f.x, f.y, f.color || '#fff6b0', Math.max(0.28, Math.min(0.7, f.life / f.max)), low ? 9 : 12);
       }
       b.globalAlpha = 1;
       b.globalCompositeOperation = 'source-over';
-      blurCanvas(bloomHalf, low ? 3 : 5);
-      gainAlpha(bloomHalf, low ? 1.6 : 2.2);
-      if (!low) {
-        const qg = bloomQuarter.getContext('2d');
-        qg.clearRect(0, 0, qw, qh);
-        qg.drawImage(bloomHalf, 0, 0, qw, qh);
-        blurCanvas(bloomQuarter, 4);
+      bloomLive = n;
+      if (n > 0) {
+        blurCanvas(bloomHalf, low ? 1 : 2);
+        if (!low && (fxFrame & 1) === 0) {
+          const qg = bloomQuarter.getContext('2d');
+          qg.setTransform(1, 0, 0, 1, 0, 0);
+          qg.clearRect(0, 0, qw, qh);
+          qg.drawImage(bloomHalf, 0, 0, qw, qh);
+        }
       }
     }
-    ctx.globalAlpha = low ? 0.42 : 0.62;
+    if (!bloomLive) return;
+    ctx.globalAlpha = low ? 0.34 : 0.48;
     ctx.drawImage(bloomHalf, 0, 0, view.w, view.h);
     if (!low) {
-      ctx.globalAlpha = 0.36;
+      ctx.globalAlpha = 0.22;
       ctx.drawImage(bloomQuarter, 0, 0, view.w, view.h);
     }
   }
@@ -4572,10 +4650,10 @@
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.imageSmoothingEnabled = true;
-    ctx.globalAlpha = low ? 0.5 : 0.7;
+    ctx.globalAlpha = low ? 0.4 : 0.55;
     blitGlow(cityGlow, 0.5);
     if (!low && cityGlowQ) {
-      ctx.globalAlpha = 0.42;
+      ctx.globalAlpha = 0.26;
       blitGlow(cityGlowQ, 0.25);
     }
     paintDynamicBloom();
@@ -4586,23 +4664,27 @@
   function paintEdgeBlur() {
     const dw = Math.max(2, view.w >> 2);
     const dh = Math.max(2, view.h >> 2);
-    if (!dofCanvas || dofCanvas.width !== dw) {
+    if (!dofCanvas || dofCanvas.width !== dw || dofCanvas.height !== dh) {
       dofCanvas = document.createElement('canvas');
       dofCanvas.width = dw;
       dofCanvas.height = dh;
+      dofGrad = null;
     }
-    if ((fxFrame & 1) === 0) {
+    if ((fxFrame & 3) === 0) {
       const d = dofCanvas.getContext('2d');
+      d.setTransform(1, 0, 0, 1, 0, 0);
       d.clearRect(0, 0, dw, dh);
       try { d.filter = 'blur(1px)'; } catch (err) { d.filter = 'none'; }
       d.drawImage(canvas, 0, 0, dw, dh);
       d.filter = 'none';
       d.globalCompositeOperation = 'destination-in';
-      const inner = Math.min(dw, dh) * 0.42;
-      const g = d.createRadialGradient(dw / 2, dh / 2, inner, dw / 2, dh / 2, Math.max(dw, dh) * 0.72);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,0.5)');
-      d.fillStyle = g;
+      if (!dofGrad) {
+        const inner = Math.min(dw, dh) * 0.42;
+        dofGrad = d.createRadialGradient(dw / 2, dh / 2, inner, dw / 2, dh / 2, Math.max(dw, dh) * 0.72);
+        dofGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        dofGrad.addColorStop(1, 'rgba(0,0,0,0.5)');
+      }
+      d.fillStyle = dofGrad;
       d.fillRect(0, 0, dw, dh);
       d.globalCompositeOperation = 'source-over';
     }
