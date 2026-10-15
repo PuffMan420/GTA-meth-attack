@@ -84,6 +84,7 @@
   const muteBtn = document.getElementById('mute');
   const joystick = document.getElementById('joystick');
   const knob = document.getElementById('knob');
+  const touchHint = document.getElementById('touch-hint');
   const banner = document.getElementById('banner');
   const overlay = document.getElementById('overlay');
   const titleScreen = document.getElementById('title-screen');
@@ -134,7 +135,12 @@
   let joyX = 0;
   let joyY = 0;
   let joyId = null;
-  let wantJoy = window.matchMedia('(pointer: coarse)').matches;
+  let joyBaseX = 0;
+  let joyBaseY = 0;
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  let wantJoy = coarsePointer;
+  let touchHintSeen = false;
+  try { touchHintSeen = localStorage.getItem('gta-meth-touch-hint') === '1'; } catch (err) { /* ignore */ }
   let lastTs = 0;
   let choosing = false;
   let flashes = [];
@@ -1638,7 +1644,7 @@
   }
 
   function cameraTarget() {
-    const biasY = joystick.hidden ? 0 : view.h * 0.06;
+    const biasY = 0;
     let x = player.x - view.w / 2;
     let y = player.y - view.h / 2 + biasY;
     if (view.w >= WORLD) x = -Math.floor((view.w - WORLD) / 2);
@@ -3692,6 +3698,7 @@
     levelEl.textContent = 'LV ' + player.level;
     killsEl.textContent = 'KO ' + kills;
     hint.hidden = !(state === 'play' && elapsed < 12 && !moved);
+    if (touchHint) touchHint.hidden = !(state === 'play' && !touchHintSeen && (wantJoy || coarsePointer));
     let boss = null;
     for (let i = 0; i < enemies.length; i++) {
       if (enemies[i].alive && enemies[i].type === 'boss') boss = enemies[i];
@@ -3856,7 +3863,7 @@
     deadScreen.hidden = true;
     overlay.hidden = true;
     hud.hidden = false;
-    showJoy(wantJoy);
+    showJoy(false);
   }
 
   function showDead() {
@@ -3942,7 +3949,7 @@
       deadScreen.hidden = true;
       overlay.hidden = true;
       hud.hidden = false;
-      showJoy(wantJoy);
+      showJoy(false);
       refreshWeaponIcons();
     } else {
       state = 'title';
@@ -4193,10 +4200,7 @@
 
   window.addEventListener('blur', () => {
     held.up = held.down = held.left = held.right = false;
-    joyX = 0;
-    joyY = 0;
-    joyId = null;
-    knob.style.transform = 'translate(-50%, -50%)';
+    endJoy();
   });
 
   window.addEventListener('resize', resize);
@@ -4208,24 +4212,58 @@
   }, { passive: false });
   window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  window.addEventListener('touchstart', () => {
-    wantJoy = true;
-    if (state === 'play') showJoy(true);
-  }, { passive: true });
+  const JOY_MAX = 46;
+  const JOY_MARGIN = 66;
 
-  function joyPoint(e) {
-    const rect = joystick.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = e.clientX - cx;
-    const dy = e.clientY - cy;
-    const max = rect.width * 0.34;
-    const len = Math.hypot(dx, dy) || 1;
-    const cl = Math.min(max, len);
-    const nx = dx / len;
-    const ny = dy / len;
-    let jx = nx * (cl / max);
-    let jy = ny * (cl / max);
+  function placeJoy(x, y) {
+    joyBaseX = x;
+    joyBaseY = y;
+    joystick.style.left = x + 'px';
+    joystick.style.top = y + 'px';
+  }
+
+  function endJoy() {
+    joyId = null;
+    joyX = 0;
+    joyY = 0;
+    joystick.hidden = true;
+    knob.style.transform = 'translate(-50%, -50%)';
+  }
+
+  function rememberTouchHint() {
+    if (touchHintSeen) return;
+    touchHintSeen = true;
+    if (touchHint) touchHint.hidden = true;
+    try { localStorage.setItem('gta-meth-touch-hint', '1'); } catch (err) { /* ignore */ }
+  }
+
+  function uiOwns(node) {
+    return !!(node && node.closest && node.closest('#mute, #overlay, button, a, input, textarea, select'));
+  }
+
+  function joyFrom(clientX, clientY) {
+    let dx = clientX - joyBaseX;
+    let dy = clientY - joyBaseY;
+    let len = Math.hypot(dx, dy);
+    if (len > JOY_MAX + 28) {
+      const follow = Math.min(22, (len - JOY_MAX - 28) * 0.4);
+      const nx = dx / len;
+      const ny = dy / len;
+      let nxBase = joyBaseX + nx * follow;
+      let nyBase = joyBaseY + ny * follow;
+      nxBase = Math.max(JOY_MARGIN, Math.min(window.innerWidth - JOY_MARGIN, nxBase));
+      nyBase = Math.max(JOY_MARGIN, Math.min(window.innerHeight - JOY_MARGIN, nyBase));
+      placeJoy(nxBase, nyBase);
+      dx = clientX - joyBaseX;
+      dy = clientY - joyBaseY;
+      len = Math.hypot(dx, dy);
+    }
+    const span = len || 1;
+    const cl = Math.min(JOY_MAX, len);
+    const nx = dx / span;
+    const ny = dy / span;
+    let jx = nx * (cl / JOY_MAX);
+    let jy = ny * (cl / JOY_MAX);
     if (Math.hypot(jx, jy) < 0.18) {
       jx = 0;
       jy = 0;
@@ -4235,28 +4273,31 @@
     knob.style.transform = 'translate(calc(-50% + ' + (nx * cl) + 'px), calc(-50% + ' + (ny * cl) + 'px))';
   }
 
-  joystick.addEventListener('pointerdown', (e) => {
+  window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
     wantJoy = true;
+    if (joyId !== null) return;
+    if (state !== 'play') return;
+    if (uiOwns(e.target)) return;
     joyId = e.pointerId;
-    joystick.setPointerCapture(e.pointerId);
-    joyPoint(e);
-    e.preventDefault();
-    e.stopPropagation();
+    placeJoy(e.clientX, e.clientY);
+    joystick.hidden = false;
+    joyFrom(e.clientX, e.clientY);
+    rememberTouchHint();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   });
-  joystick.addEventListener('pointermove', (e) => {
+  window.addEventListener('pointermove', (e) => {
     if (e.pointerId !== joyId) return;
-    joyPoint(e);
-    e.preventDefault();
+    joyFrom(e.clientX, e.clientY);
   });
-  function joyEnd(e) {
+  window.addEventListener('pointerup', (e) => {
     if (e.pointerId !== joyId) return;
-    joyId = null;
-    joyX = 0;
-    joyY = 0;
-    knob.style.transform = 'translate(-50%, -50%)';
-  }
-  joystick.addEventListener('pointerup', joyEnd);
-  joystick.addEventListener('pointercancel', joyEnd);
+    endJoy();
+  });
+  window.addEventListener('pointercancel', (e) => {
+    if (e.pointerId !== joyId) return;
+    endJoy();
+  });
 
   function startGame() {
     if (state !== 'title') return;
