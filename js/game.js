@@ -7,7 +7,7 @@
   const PERIOD = 18;
   const TW = 6;
   const WORLD = MAP * TILE;
-  const MAX_ENEMIES = 65;
+  const MAX_ENEMIES = 32;
   // One world unit: 1 tile = 1 meter. A person is 1 tile wide and about 1.7 m tall.
 
   const T_ROAD = 1;
@@ -288,7 +288,7 @@
 
   function xpFor(level) {
     const n = level - 1;
-    return Math.round(6 + n * 4 + n * n * 0.55);
+    return Math.round(5 + n * 3.2 + n * n * 0.42);
   }
 
   function might() { return 1 + player.mightLv * 0.1; }
@@ -2086,18 +2086,18 @@
     spawnBark(e.x, e.y, list[(Math.random() * list.length) | 0], colors[e.type]);
   }
 
-  function hpMul() { return 1 + elapsed * 0.012; }
-  function dmgMul() { return 1 + elapsed * 0.005; }
-  function spdMul() { return 1 + Math.min(0.28, elapsed * 0.0015); }
+  function hpMul() { return 1 + elapsed * 0.007; }
+  function dmgMul() { return 1 + elapsed * 0.0025; }
+  function spdMul() { return 1 + Math.min(0.14, elapsed * 0.0008); }
 
   function makeEnemy(type, x, y) {
     const open = findOpen(x, y, type === 'boss' ? 12 : 8) || { x: x, y: y };
     const base = {
-      zombie: { hp: 16, speed: 44, dmg: 8, r: 6, xp: 2 },
-      cop: { hp: 26, speed: 76, dmg: 11, r: 6, xp: 3 },
-      dealer: { hp: 20, speed: 56, dmg: 6, r: 6, xp: 4 },
-      alfa: { hp: 64, speed: 42, dmg: 14, r: 8, xp: 8 },
-      boss: { hp: 480, speed: 48, dmg: 16, r: 10, xp: 40 },
+      zombie: { hp: 12, speed: 34, dmg: 4, r: 6, xp: 3 },
+      cop: { hp: 22, speed: 56, dmg: 5, r: 6, xp: 4 },
+      dealer: { hp: 16, speed: 44, dmg: 3, r: 6, xp: 6 },
+      alfa: { hp: 48, speed: 32, dmg: 7, r: 8, xp: 12 },
+      boss: { hp: 280, speed: 36, dmg: 8, r: 10, xp: 48 },
     }[type];
     const e = {
       id: nextId++,
@@ -2121,7 +2121,7 @@
       lx: 0,
       ly: 0,
       shootT: 0.5 + Math.random() * 1.2,
-      shotDmg: Math.round(12 * dmgMul()),
+      shotDmg: Math.round(6 * dmgMul()),
       mode: 'chase',
       modeT: 1.2 + Math.random(),
       dashx: 1,
@@ -2218,16 +2218,16 @@
 
   function addHeat() {
     wanted += 1;
-    if (wanted < 4 || wantedCool > 0 || state !== 'play') return;
-    wantedCool = 16;
-    wanted = Math.max(0, wanted - 2);
+    if (wanted < 8 || wantedCool > 0 || state !== 'play') return;
+    wantedCool = 30;
+    wanted = Math.max(0, wanted - 4);
     banner.textContent = 'HEAT IS UP — MORE COPS';
     banner.hidden = false;
     banner.classList.remove('pop');
     void banner.offsetWidth;
     banner.classList.add('pop');
     bannerTimer = 2.4;
-    const extra = 2;
+    const extra = 1;
     for (let i = 0; i < extra; i++) {
       if (livingCount() >= MAX_ENEMIES) break;
       const spot = randomSpawnPoint();
@@ -2393,9 +2393,9 @@
 
   function pickType() {
     const r = Math.random();
-    if (elapsed < 18) return 'zombie';
-    if (elapsed < 40) return r < 0.72 ? 'zombie' : 'cop';
-    if (elapsed > 85 && r < 0.08) return 'alfa';
+    if (elapsed < 32) return 'zombie';
+    if (elapsed < 60) return r < 0.82 ? 'zombie' : 'cop';
+    if (elapsed > 110 && r < 0.05) return 'alfa';
     if (r < 0.46) return 'zombie';
     if (r < 0.76) return 'cop';
     return 'dealer';
@@ -2752,11 +2752,11 @@
         e.lungeCd -= dt;
         if (e.lunging > 0) {
           e.lunging -= dt;
-          vx = e.lx * 155;
-          vy = e.ly * 155;
+          vx = e.lx * 108;
+          vy = e.ly * 108;
         } else if (e.lungeCd <= 0 && dist < 140) {
           e.lunging = 0.24;
-          e.lungeCd = 2.5;
+          e.lungeCd = 3.2;
           e.lx = nx;
           e.ly = ny;
           e.cast = 0.16;
@@ -2773,7 +2773,7 @@
         e.shootT -= dt;
         if (e.shootT <= 0 && dist < 260 && dist > 36) {
           e.shootT = Math.max(0.85, 2.15 - elapsed * 0.004);
-          const sp = 155;
+          const sp = 110;
           bullets.push({
             x: e.x,
             y: e.y,
@@ -2807,8 +2807,8 @@
           vx = 0;
           vy = 0;
         } else if (e.mode === 'dash') {
-          vx = e.dashx * 175;
-          vy = e.dashy * 175;
+          vx = e.dashx * 120;
+          vy = e.dashy * 120;
         }
       }
 
@@ -2927,8 +2927,8 @@
     }
     spawnT -= dt;
     if (spawnT > 0) return;
-    spawnT = Math.max(0.62, 1.35 - elapsed * 0.005);
-    const n = 1 + Math.floor(elapsed / 45);
+    spawnT = Math.max(1.25, 2.45 - elapsed * 0.002);
+    const n = 1 + Math.floor(elapsed / 120);
     for (let i = 0; i < n; i++) {
       if (livingCount() >= MAX_ENEMIES) break;
       const spot = randomSpawnPoint();
@@ -3476,7 +3476,7 @@
       }
     }
     wantedCool = Math.max(0, wantedCool - dt);
-    if (wanted > 0 && (fxFrame % 240) === 0) wanted = Math.max(0, wanted - 1);
+    if (wanted > 0 && (fxFrame % 150) === 0) wanted = Math.max(0, wanted - 1);
     for (let i = street.length - 1; i >= 0; i--) {
       const p = street[i];
       p.hit = Math.max(0, (p.hit || 0) - dt);
@@ -4663,8 +4663,8 @@
     return {
       x: (45 + 0.5) * TILE,
       y: (40 + 0.5) * TILE,
-      hp: 100,
-      maxHp: 100,
+      hp: 240,
+      maxHp: 240,
       level: 1,
       xp: 0,
       next: xpFor(1),
@@ -4830,7 +4830,7 @@
   }
 
   function spawnIntro() {
-    const offsets = [[120, 36], [48, 130], [-110, 64], [150, -24]];
+    const offsets = [[120, 36], [48, 130]];
     for (let i = 0; i < offsets.length; i++) {
       const spot = findOpen(player.x + offsets[i][0], player.y + offsets[i][1], 7);
       if (spot) enemies.push(makeEnemy('zombie', spot.x, spot.y));
