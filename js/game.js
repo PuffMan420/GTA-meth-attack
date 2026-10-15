@@ -2130,6 +2130,80 @@
     }
   }
 
+  function swing(kind) {
+    player.cast = 0.18;
+    player.castKind = kind;
+    player.swing = 0.42;
+    player.swingMax = 0.42;
+    player.hold = kind;
+  }
+
+  function bottleFx(ang) {
+    const g = pistolPoint();
+    if (flashes.length > 28) flashes.shift();
+    flashes.push({ x: g.x, y: g.y, ang: ang, color: '#d8ffe8', life: 0.14, max: 0.14, soda: true });
+    if (particles.length > 168) return;
+    for (let i = 0; i < 4; i++) {
+      particles.push({
+        x: g.x,
+        y: g.y,
+        vx: Math.cos(ang) * (18 + i * 8) + (i - 2) * 4,
+        vy: Math.sin(ang) * (18 + i * 8) - 10,
+        life: 0.22 + i * 0.03,
+        max: 0.28,
+        color: i % 2 ? '#b8ff9a' : '#e8ffe8',
+        size: 2,
+      });
+    }
+  }
+
+  function bassFx() {
+    for (let i = 0; i < 4; i++) {
+      if (flashes.length > 28) flashes.shift();
+      const a = (i / 4) * Math.PI * 2 + 0.6;
+      flashes.push({
+        x: player.x + Math.cos(a) * 12,
+        y: player.y - 10 + Math.sin(a) * 8,
+        ang: a,
+        color: '#5ce1e6',
+        life: 0.22,
+        max: 0.22,
+        bass: true,
+      });
+    }
+  }
+
+  function sodaSplash(x, y) {
+    if (particles.length > 168) return;
+    for (let i = 0; i < 5; i++) {
+      particles.push({
+        x: x,
+        y: y,
+        vx: (i - 2) * 26,
+        vy: -18 - (i % 3) * 10,
+        life: 0.28,
+        max: 0.28,
+        color: i % 2 ? '#9ae06a' : '#e8ffe8',
+        size: 2,
+      });
+    }
+  }
+
+  function cartClank(x, y) {
+    if (particles.length > 168) return;
+    particles.push({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 20,
+      vy: -22,
+      life: 0.16,
+      max: 0.16,
+      color: '#f4f0e8',
+      size: 2,
+    });
+    if ((player.swing || 0) <= 0) swing('carts');
+  }
+
   function spawnBark(x, y, text, color) {
     if (barks.length >= 4) return;
     barks.push({ x: x, y: y - 32, text: text, color: color || '#fff', life: 1.15, max: 1.15 });
@@ -2482,6 +2556,7 @@
     player.iframe = Math.max(0, player.iframe - dt);
     player.flash = Math.max(0, player.flash - dt);
     player.cast = Math.max(0, (player.cast || 0) - dt);
+    player.swing = Math.max(0, (player.swing || 0) - dt);
     const regen = regenStat();
     if (regen > 0 && player.hp < player.maxHp && player.hp > 0) {
       player.hp = Math.min(player.maxHp, player.hp + regen * dt);
@@ -2539,8 +2614,7 @@
         crystal.t = 0.12;
       } else {
         crystal.t = crystalCd();
-        player.cast = 0.18;
-        player.castKind = 'crystal';
+        swing('crystal');
         setDir(player, ax, ay);
         sfx.shoot(820);
         arcBit(player.x, player.y, '#e6c14a', 1);
@@ -2589,6 +2663,7 @@
           if (dx * dx + dy * dy <= reach * reach) {
             e.cartT = globalTime;
             hurtEnemy(e, cartDmg(), x, y, 'cart');
+            cartClank(x, y);
           }
         }
         for (let k = 0; k < folk.length; k++) {
@@ -2598,6 +2673,7 @@
           if (overlapCircle(f.x, f.y, f.radius, x, y, 14)) {
             f.cartT = globalTime;
             hurtFolk(f, cartDmg(), x, y, 'cart');
+            cartClank(x, y);
           }
         }
         for (let k = 0; k < street.length; k++) {
@@ -2607,6 +2683,7 @@
           if (overlapCircle(pr.x, pr.y, pr.radius, x, y, 12)) {
             pr.cartT = globalTime;
             hurtStreet(pr, cartDmg(), x, y);
+            cartClank(x, y);
           }
         }
       }
@@ -2617,11 +2694,11 @@
       bass.t -= dt;
       if (bass.t <= 0) {
         bass.t = bassCd();
-        player.cast = 0.18;
-        player.castKind = 'bass';
+        swing('bass');
         setDir(player, ax, ay);
         sfx.bass();
         addShake(3);
+        bassFx();
         pulse(player.x, player.y, bassRadius(), bassDmg(), '#5ce1e6');
       }
     }
@@ -2631,13 +2708,12 @@
       bottle.t -= dt;
       if (bottle.t <= 0) {
         bottle.t = 1.15 * Math.pow(0.94, bottle.countLv - 3);
-        player.cast = 0.18;
-        player.castKind = 'bottle';
+        swing('bottle');
         setDir(player, ax, ay);
         sfx.bottle();
         const n = bottle.countLv;
         const base = Math.atan2(ay, ax);
-        muzzle(player.x + Math.cos(base) * 8, player.y - 2 + Math.sin(base) * 8, base, '#d8ffe8');
+        bottleFx(base);
         for (let i = 0; i < n; i++) {
           if (shots.length > 160) break;
           const ang = base + (i - (n - 1) / 2) * 0.34;
@@ -2675,6 +2751,7 @@
         p.alive = false;
         if (p.kind === 'bottle') {
           sfx.noise(0.06, 0.04);
+          sodaSplash(p.x, p.y);
           pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
         }
         continue;
@@ -2690,6 +2767,7 @@
         if (p.kind === 'bottle') {
           p.alive = false;
           sfx.noise(0.06, 0.04);
+          sodaSplash(p.x, p.y);
           pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
           break;
         }
@@ -2709,6 +2787,7 @@
         if (p.kind === 'bottle') {
           p.alive = false;
           sfx.noise(0.06, 0.04);
+          sodaSplash(p.x, p.y);
           pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
           break;
         }
@@ -2728,6 +2807,7 @@
         if (p.kind === 'bottle') {
           p.alive = false;
           sfx.noise(0.06, 0.04);
+          sodaSplash(p.x, p.y);
           pulse(p.x, p.y, p.boom, p.dmg, '#b8ff9a');
           break;
         }
@@ -3262,16 +3342,27 @@
     const dh = img.worldH || img.height;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
-    if (ent === player && player.cast > 0) {
-      const kind = player.castKind;
-      const wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : spr.crystal;
-      if (wimg) {
-        const ww = wimg.worldW || 8;
-        const wh = wimg.worldH || 8;
-        ctx.drawImage(wimg, dw * 0.15, -dh * 0.62, ww, wh);
-      }
-    }
+    if (ent === player) drawHeldWeapon(dw, dh, foot);
     ctx.restore();
+  }
+
+  function drawHeldWeapon(dw, dh, foot) {
+    const kind = player.hold || 'crystal';
+    const wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : kind === 'carts' ? spr.cart : spr.crystal;
+    if (!wimg) return;
+    const ww = wimg.worldW || 8;
+    const wh = wimg.worldH || 8;
+    const hx = -dw / 2 + (18 / 76) * dw;
+    const hy = -dh + foot + (44 / 98) * dh;
+    const t = player.swing > 0 ? player.swing / (player.swingMax || 0.42) : 0;
+    let ox = 0;
+    let oy = Math.round(Math.sin(globalTime * 5));
+    if (kind === 'crystal' && t > 0) ox = Math.round(t * 3);
+    else if (kind === 'bottle' && t > 0) ox = Math.round(-6 * (1 - t) + 3 * t);
+    else if (kind === 'bass' && t > 0) oy = Math.round(Math.sin((1 - t) * Math.PI * 2) * 2);
+    else if (kind === 'carts') ox = Math.round(Math.sin(globalTime * 7) * 2);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(wimg, Math.round(hx + ox - ww / 2), Math.round(hy + oy - wh / 2), ww, wh);
   }
 
   function onScreen(x, y, m) {
@@ -4207,6 +4298,28 @@
         ctx.globalAlpha = 1;
         continue;
       }
+      if (f.soda) {
+        ctx.globalAlpha = Math.max(0, f.life / f.max);
+        const x = Math.round(f.x - cam.x);
+        const y = Math.round(f.y - cam.y);
+        ctx.fillStyle = '#e8ffe8';
+        ctx.fillRect(x - 1, y - 1, 3, 3);
+        ctx.fillStyle = '#9ae06a';
+        ctx.fillRect(Math.round(x + Math.cos(f.ang) * 5), Math.round(y + Math.sin(f.ang) * 5), 2, 2);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (f.bass) {
+        ctx.globalAlpha = Math.max(0, f.life / f.max);
+        const x = Math.round(f.x - cam.x);
+        const y = Math.round(f.y - cam.y);
+        ctx.fillStyle = '#5ce1e6';
+        ctx.fillRect(x, y - 3, 2, 6);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x, y - 1, 2, 2);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.save();
       ctx.translate(Math.round(f.x - cam.x), Math.round(f.y - cam.y));
       ctx.rotate(f.ang);
@@ -4857,6 +4970,9 @@
       flip: false,
       cast: 0,
       castKind: '',
+      hold: 'crystal',
+      swing: 0,
+      swingMax: 0.42,
     };
   }
 
