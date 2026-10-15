@@ -64,7 +64,7 @@
     var rate = 3;
     if (ent.moving && spd > 96) {
       set = 'run';
-      rate = 14;
+      rate = 12;
     } else if (ent.moving && spd > 8) {
       set = 'walk';
       rate = 8;

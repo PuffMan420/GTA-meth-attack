@@ -1,5 +1,5 @@
 // Top-down city art in the GTA 2 street style: tar roofs, brick and stucco walls.
-// Classic script. Sprites are 3x world pixels, then drawn nearest-neighbor.
+// Classic script. Sprites are 2x world pixels so each dot matches the gubbe.
 (function () {
   'use strict';
 
@@ -32,43 +32,6 @@
     return c;
   }
 
-  function chamfer(g, x, y, w, h, r) {
-    const rr = Math.max(1, r);
-    g.beginPath();
-    g.moveTo(x + rr, y);
-    g.lineTo(x + w - rr, y);
-    g.lineTo(x + w, y + rr);
-    g.lineTo(x + w, y + h - rr);
-    g.lineTo(x + w - rr, y + h);
-    g.lineTo(x + rr, y + h);
-    g.lineTo(x, y + h - rr);
-    g.lineTo(x, y + rr);
-    g.closePath();
-  }
-
-  function wheel(g, x, y, vertical) {
-    g.fillStyle = '#120e14';
-    if (vertical) g.fillRect(x, y, 7, 16);
-    else g.fillRect(x, y, 16, 7);
-    g.fillStyle = '#3a3644';
-    if (vertical) g.fillRect(x + 1, y + 3, 5, 4);
-    else g.fillRect(x + 3, y + 1, 4, 5);
-    g.fillStyle = '#6a6474';
-    if (vertical) g.fillRect(x + 2, y + 4, 2, 2);
-    else g.fillRect(x + 4, y + 2, 2, 2);
-  }
-
-  function glass(g, x, y, w, h) {
-    const grd = g.createLinearGradient(x, y, x + w, y + h);
-    grd.addColorStop(0, 'rgba(232, 250, 255, 0.92)');
-    grd.addColorStop(0.45, '#7ec8e4');
-    grd.addColorStop(1, '#163044');
-    g.fillStyle = grd;
-    g.fillRect(x, y, w, h);
-    g.fillStyle = 'rgba(255,255,255,0.72)';
-    g.fillRect(x + 2, y + 2, Math.max(2, w * 0.28), Math.max(2, h * 0.22));
-  }
-
   const LAYOUT = {
     sedan: { nose: 0.06, hood: 0.30, wind: 0.12, roof: 0.22, rear: 0.10, trunk: 0.14, inset: 0.16, round: 10 },
     taxi: { nose: 0.06, hood: 0.28, wind: 0.12, roof: 0.24, rear: 0.10, trunk: 0.14, inset: 0.16, round: 10, sign: true },
@@ -82,134 +45,131 @@
     const lay = LAYOUT[model] || LAYOUT.sedan;
     const worldW = model === 'van' ? 40 : model === 'pickup' ? 38 : model === 'sports' ? 34 : 36;
     const worldH = model === 'van' ? 80 : model === 'pickup' ? 76 : model === 'sports' ? 70 : model === 'police' ? 74 : 72;
-    const S = 3;
+    const S = 2;
     const W = worldW * S;
     const H = worldH * S;
     const c = canvas(W, H, worldW, worldH);
     const g = c.getContext('2d');
     let body = color || '#c8363a';
     if (model === 'taxi') body = '#f0c014';
-    if (model === 'police') body = '#1b2c58';
-    const hi = mix(body, 0.42);
-    const dk = mix(body, -0.38);
-    const inset = (W * lay.inset) | 0;
-    const x = inset;
-    const bw = W - inset * 2;
-    let y = 4;
-    const seg = (p) => Math.max(6, (H * p) | 0);
+    if (model === 'police') body = '#1c3a8a';
+    const hi = mix(body, 0.35);
+    const dk = mix(body, -0.32);
+    const x = 14;
+    const y0 = 8;
+    const bw = W - 28;
+    const bh = H - 16;
+
+    function tire(tx, ty) {
+      g.fillStyle = '#000';
+      g.fillRect(tx - 1, ty - 1, 12, 20);
+      g.fillStyle = '#141418';
+      g.fillRect(tx, ty, 10, 18);
+      g.fillStyle = '#5a5864';
+      g.fillRect(tx + 2, ty + 3, 6, 4);
+      g.fillRect(tx + 2, ty + 11, 6, 4);
+    }
+    tire(1, (H * 0.16) | 0);
+    tire(W - 13, (H * 0.16) | 0);
+    tire(1, (H * 0.64) | 0);
+    tire(W - 13, (H * 0.64) | 0);
+
+    g.fillStyle = '#000';
+    g.fillRect(x - 2, y0 - 2, bw + 4, bh + 4);
+    g.fillStyle = dk;
+    g.fillRect(x, y0, bw, bh);
+    g.fillStyle = body;
+    g.fillRect(x + 3, y0 + 3, bw - 6, bh - 6);
+    g.fillStyle = hi;
+    g.fillRect(x + 4, y0 + 4, 5, bh - 12);
+
+    const seg = (p) => Math.max(6, (bh * p) | 0);
+    let y = y0 + 4;
     const nose = seg(lay.nose);
     const hood = seg(lay.hood);
     const wind = seg(lay.wind);
     const roof = seg(lay.roof);
     const rear = seg(lay.rear);
-    const trunk = seg(lay.trunk);
 
-    wheel(g, 2, (H * 0.18) | 0, true);
-    wheel(g, W - 9, (H * 0.18) | 0, true);
-    wheel(g, 2, (H * 0.68) | 0, true);
-    wheel(g, W - 9, (H * 0.68) | 0, true);
-
-    const bodyGrd = g.createLinearGradient(x, 0, x + bw, 0);
-    bodyGrd.addColorStop(0, dk);
-    bodyGrd.addColorStop(0.22, hi);
-    bodyGrd.addColorStop(0.5, body);
-    bodyGrd.addColorStop(0.82, body);
-    bodyGrd.addColorStop(1, dk);
-    g.fillStyle = bodyGrd;
-    chamfer(g, x, y, bw, H - 8, lay.round);
-    g.fill();
-
-    g.fillStyle = 'rgba(255,255,255,0.28)';
-    g.fillRect(x + bw * 0.42, y + 6, Math.max(3, bw * 0.08), hood * 0.72);
-
-    g.fillStyle = '#141018';
-    g.fillRect(x + 4, y + 2, bw * 0.28, 4);
-    g.fillRect(x + bw - bw * 0.32, y + 2, bw * 0.28, 4);
-    g.fillStyle = '#fff4c8';
-    g.fillRect(x + 6, y + 3, bw * 0.2, 3);
-    g.fillRect(x + bw - bw * 0.28, y + 3, bw * 0.18, 3);
+    g.fillStyle = '#fff6c0';
+    g.fillRect(x + 6, y, (bw * 0.22) | 0, 4);
+    g.fillRect(x + bw - 6 - ((bw * 0.22) | 0), y, (bw * 0.22) | 0, 4);
+    g.fillStyle = '#fff';
+    g.fillRect(x + 7, y, 3, 2);
+    g.fillRect(x + bw - 10, y, 3, 2);
 
     y += nose;
-    g.fillStyle = mix(body, 0.12);
-    g.fillRect(x + 3, y, bw - 6, hood);
-    g.fillStyle = 'rgba(255,255,255,0.16)';
-    g.fillRect(x + bw * 0.62, y + 4, bw * 0.22, hood * 0.45);
-
-    y += hood - 2;
-    glass(g, x + bw * 0.12, y, bw * 0.76, wind);
-    g.fillStyle = '#0c1014';
-    g.fillRect(x + bw * 0.12, y, bw * 0.76, 2);
-
-    g.fillStyle = '#d8d4dc';
-    g.fillRect(x - 4, y + 2, 6, 4);
-    g.fillRect(x + bw - 2, y + 2, 6, 4);
+    g.fillStyle = mix(body, 0.1);
+    g.fillRect(x + 4, y, bw - 8, hood - 2);
+    y += hood;
+    g.fillStyle = '#000';
+    g.fillRect(x + 6, y - 1, bw - 12, wind + 2);
+    g.fillStyle = '#163044';
+    g.fillRect(x + 8, y, bw - 16, wind);
+    g.fillStyle = '#d8f4ff';
+    g.fillRect(x + 10, y + 1, 6, 3);
+    g.fillStyle = '#8aa0a8';
+    g.fillRect(x - 2, y + 2, 6, 3);
+    g.fillRect(x + bw - 4, y + 2, 6, 3);
 
     y += wind;
-    const roofColor = model === 'sports' ? '#141018' : model === 'taxi' ? '#f6d34a' : mix(body, -0.18);
+    const roofColor = model === 'sports' ? '#141018' : model === 'taxi' ? '#ffe14a' : mix(body, -0.2);
+    g.fillStyle = '#000';
+    g.fillRect(x + 6, y - 1, bw - 12, roof + 2);
     g.fillStyle = roofColor;
-    g.fillRect(x + bw * 0.08, y, bw * 0.84, roof);
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    g.fillRect(x + bw * 0.14, y + 3, bw * 0.18, Math.max(3, roof * 0.25));
+    g.fillRect(x + 8, y, bw - 16, roof);
+    g.fillStyle = mix(roofColor, 0.25);
+    g.fillRect(x + 10, y + 2, 6, Math.max(2, roof - 4));
 
     if (lay.bar) {
-      g.fillStyle = '#0c0a10';
-      g.fillRect(x + bw * 0.18, y - 2, bw * 0.64, 7);
-      g.fillStyle = '#ff2d3c';
-      g.fillRect(x + bw * 0.22, y - 1, bw * 0.22, 5);
-      g.fillStyle = '#3d6dff';
-      g.fillRect(x + bw * 0.52, y - 1, bw * 0.22, 5);
+      g.fillStyle = '#000';
+      g.fillRect(x + 8, y + 1, bw - 16, 6);
+      g.fillStyle = '#ff2a3a';
+      g.fillRect(x + 12, y + 2, (bw * 0.22) | 0, 4);
+      g.fillStyle = '#3d6bff';
+      g.fillRect(x + bw - 12 - ((bw * 0.22) | 0), y + 2, (bw * 0.22) | 0, 4);
       g.fillStyle = '#f4f1ea';
-      g.fillRect(x + 2, y + roof * 0.25, bw * 0.22, roof * 0.5);
-      g.fillRect(x + bw - bw * 0.24, y + roof * 0.25, bw * 0.22, roof * 0.5);
+      g.fillRect(x + 4, y + 4, 8, roof - 6);
+      g.fillRect(x + bw - 12, y + 4, 8, roof - 6);
     }
     if (lay.sign) {
-      g.fillStyle = '#141018';
-      g.fillRect(x + bw * 0.3, y + 2, bw * 0.4, 8);
+      g.fillStyle = '#000';
+      g.fillRect(x + (bw * 0.28) | 0, y + 1, (bw * 0.44) | 0, 8);
       g.fillStyle = '#ffe14a';
-      g.fillRect(x + bw * 0.34, y + 4, bw * 0.32, 4);
-      g.fillStyle = '#1a1408';
-      g.fillRect(x + bw * 0.4, y + 5, 3, 2);
-      g.fillRect(x + bw * 0.52, y + 5, 3, 2);
+      g.fillRect(x + (bw * 0.32) | 0, y + 3, (bw * 0.36) | 0, 4);
     }
     if (model === 'van') {
-      g.fillStyle = 'rgba(0,0,0,0.28)';
-      g.fillRect(x + bw * 0.5, y + 4, 2, roof - 8);
-      g.fillStyle = mix(body, 0.2);
-      g.fillRect(x + 4, y + 8, bw * 0.28, roof * 0.35);
+      g.fillStyle = '#000';
+      g.fillRect(x + (bw / 2) | 0, y + 2, 2, roof - 4);
     }
 
     y += roof;
-    glass(g, x + bw * 0.16, y, bw * 0.68, rear);
+    g.fillStyle = '#000';
+    g.fillRect(x + 8, y - 1, bw - 16, rear + 2);
+    g.fillStyle = '#163044';
+    g.fillRect(x + 10, y, bw - 20, rear);
+    g.fillStyle = '#d8f4ff';
+    g.fillRect(x + bw - 20, y + 1, 5, 2);
+
     y += rear;
-    g.fillStyle = mix(body, -0.08);
-    g.fillRect(x + 3, y, bw - 6, trunk);
     if (lay.bed) {
       g.fillStyle = '#2a241c';
-      g.fillRect(x + 6, y + 3, bw - 12, trunk - 8);
+      g.fillRect(x + 6, y, bw - 12, Math.max(8, y0 + bh - y - 8));
       g.fillStyle = '#4a4034';
-      g.fillRect(x + 8, y + 5, bw - 16, 4);
-      g.fillStyle = mix(body, -0.2);
-      g.fillRect(x + 4, y + trunk - 8, bw - 8, 6);
+      g.fillRect(x + 8, y + 2, bw - 16, 3);
     }
     if (lay.spoiler) {
-      g.fillStyle = '#0c0a10';
-      g.fillRect(x + 2, y - 4, bw - 4, 5);
+      g.fillStyle = '#000';
+      g.fillRect(x + 2, y - 2, bw - 4, 5);
       g.fillStyle = hi;
-      g.fillRect(x + 6, y - 3, bw - 12, 2);
+      g.fillRect(x + 6, y - 1, bw - 12, 2);
     }
-    g.fillStyle = '#ff3358';
-    g.fillRect(x + 5, H - 12, bw * 0.22, 5);
-    g.fillRect(x + bw - bw * 0.22 - 5, H - 12, bw * 0.22, 5);
+    g.fillStyle = '#ff2040';
+    g.fillRect(x + 6, y0 + bh - 8, (bw * 0.24) | 0, 5);
+    g.fillRect(x + bw - 6 - ((bw * 0.24) | 0), y0 + bh - 8, (bw * 0.24) | 0, 5);
     g.fillStyle = '#fff';
-    g.globalAlpha = 0.7;
-    g.fillRect(x + 6, H - 11, 4, 2);
-    g.fillRect(x + bw - bw * 0.22 - 2, H - 11, 4, 2);
-    g.globalAlpha = 1;
-
-    g.strokeStyle = 'rgba(8,6,12,0.65)';
-    g.lineWidth = 2;
-    chamfer(g, x, 4, bw, H - 8, lay.round);
-    g.stroke();
+    g.fillRect(x + 8, y0 + bh - 7, 3, 2);
+    g.fillRect(x + bw - 11, y0 + bh - 7, 3, 2);
     return c;
   }
 
@@ -327,6 +287,11 @@
     g.fill();
     g.fillStyle = '#2a2e32';
     g.fillRect(W * 0.58 - 1, H * 0.62, 3, 14);
+    g.fillStyle = '#141210';
+    g.fillRect(0, 0, W, 3);
+    g.fillRect(0, H - 3, W, 3);
+    g.fillRect(0, 0, 3, H);
+    g.fillRect(W - 3, 0, 3, H);
     return c;
   }
 
@@ -413,6 +378,10 @@
       g.fillStyle = '#3a3630';
       g.fillRect(8, 46, 22, 3);
       g.fillRect(8, 76, 22, 3);
+      g.fillStyle = '#141210';
+      g.fillRect(0, 0, W, 3);
+      g.fillRect(0, 0, 2, H);
+      g.fillRect(W - 2, 0, 2, H);
       return c;
     }
 
@@ -486,6 +455,11 @@
       g.fillStyle = '#1a140c';
       g.fillText(sign, W / 2, doorY - 10);
     }
+    g.fillStyle = '#141210';
+    g.fillRect(0, 0, W, 3);
+    g.fillRect(0, H - 3, W, 3);
+    g.fillRect(0, 0, 2, H);
+    g.fillRect(W - 2, 0, 2, H);
     return c;
   }
 

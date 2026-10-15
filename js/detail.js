@@ -1,5 +1,5 @@
-// High-bit sprite cache. Classic script, no build. Sprites are 3x the world size
-// so a retina draw is 1:1, with full gradients instead of a tiny palette.
+// Cast, weapons, and props in the same chunky outline as the gubbe.
+// Classic script, no build. Sprites are 2x world pixels.
 (function () {
   'use strict';
 
@@ -61,223 +61,118 @@
   }
 
   function paintPerson(dir, frame, look, pose, big) {
-    const W = big ? 78 : 48;
-    const H = big ? 114 : 81;
+    const u = big ? 3 : 2;
+    const cols = big ? 18 : 16;
+    const rows = big ? 26 : 24;
+    const W = cols * u;
+    const H = rows * u;
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
-    c.worldW = big ? 26 : 16;
-    c.worldH = big ? 38 : 27;
+    c.worldW = W / 2;
+    c.worldH = H / 2;
     const g = c.getContext('2d');
     const f = frame % 8;
-    const swing = [0, 3, 7, 9, 4, -2, -7, -4][f];
-    const bob = [0, 0, 1, 2, 1, 0, 1, 2][f];
-    const attack = pose === 'attack';
+    const swing = [0, 1, 2, 1, 0, -1, -2, -1][f];
     const side = dir === 'side';
-    const front = dir === 'down' || dir === 'se';
     const back = dir === 'up' || dir === 'ne';
-    const y0 = (big ? 10 : 4) + bob;
-    const ox = big ? 15 : 0;
-    const bulk = look.wide ? 4 : 0;
+    const attack = pose === 'attack';
+    const wide = look.wide ? 1 : 0;
 
-    function grad(x, y, w, h, a, b) {
-      const grd = g.createLinearGradient(x, y, x + w * 0.2, y + h);
-      grd.addColorStop(0, a);
-      grd.addColorStop(0.42, a);
-      grd.addColorStop(1, b);
-      g.fillStyle = grd;
+    function box(x, y, w, h, color) {
+      if (w < 1 || h < 1) return;
+      g.fillStyle = '#000';
+      g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = color;
       g.fillRect(x, y, w, h);
     }
+    function cell(x, y, w, h, color) {
+      box((x | 0) * u, (y | 0) * u, (w | 0) * u, (h | 0) * u, color);
+    }
 
-    const legL = ox + 14 - bulk * 0.2 + (back ? swing * 0.3 : swing);
-    const legR = ox + 26 + bulk * 0.2 - (back ? swing * 0.3 : swing);
-    grad(legL, y0 + 50, 8, 20, look.pantsHi, look.pantsDk);
-    grad(legR, y0 + 50, 8, 18, look.pants, look.pantsDk);
-    g.fillStyle = 'rgba(255,255,255,0.28)';
-    g.fillRect(legL, y0 + 52, 2, 12);
-    g.fillStyle = look.shoe;
-    g.fillRect(legL - 1, y0 + 68, 11, 6);
-    g.fillRect(legR - 1, y0 + 66, 11, 6);
-    g.fillStyle = '#f7f3ea';
-    g.fillRect(legL, y0 + 68, 4, 2);
-    g.fillStyle = '#2a241c';
-    g.fillRect(legL, y0 + 72, 11, 2);
-    g.fillRect(legR, y0 + 70, 11, 2);
+    const ox = side ? 1 : 0;
+    const legL = 4 + ox + (back ? -swing : swing);
+    const legR = 8 + ox + wide - (back ? -swing : swing);
+    cell(legL, 14, 3, 6, look.pants);
+    cell(legR, 14, 3, 6, look.pantsDk || look.pants);
+    cell(legL, 15, 1, 4, look.pantsHi || look.pants);
+    cell(legL - 1, 20, 4, 2, look.shoe);
+    cell(legR, 20, 4, 2, look.shoe);
+    cell(legL - 1, 20, 2, 1, '#3a342c');
 
-    const torsoX = ox + (side ? 16 : 10) - (side ? 0 : bulk / 2);
-    const torsoW = (side ? 18 : 28) + (side ? Math.min(2, bulk) : bulk);
-    grad(torsoX, y0 + 30, torsoW, 24, look.jacketHi, look.jacketDk);
-    g.fillStyle = 'rgba(255,255,255,0.16)';
-    g.fillRect(torsoX + 1, y0 + 31, 3, 16);
+    const torsoX = (side ? 5 : 4) + ox;
+    const torsoW = (side ? 6 : 8) + wide;
+    cell(torsoX, 8, torsoW, 7, look.jacket);
+    cell(torsoX, 8, 1, 6, look.jacketHi || look.jacket);
+    cell(torsoX + torsoW - 1, 9, 1, 5, look.jacketDk || look.jacket);
+    if (look.coat) cell(torsoX - 1, 13, torsoW + 2, 3, look.jacketDk || look.jacket);
+    if (!back || side) cell(torsoX + 2, 9, Math.max(2, torsoW - 4), 3, look.shirtHi || '#fff');
+    if (look.torn) cell(torsoX + 1, 11, 2, 2, look.skin);
+    if (look.badge) cell(torsoX + torsoW - 3, 9, 2, 2, look.badge);
     if (look.chain) {
-      g.fillStyle = '#ffe9a0';
-      g.fillRect(torsoX + 6, y0 + 40, torsoW - 12, 2);
-      g.fillRect(torsoX + torsoW / 2 - 2, y0 + 42, 4, 5);
-    }
-    if (front || side) {
-      grad(torsoX + (side ? 8 : 8), y0 + 34, side ? 8 : 12, 12, look.shirtHi, look.shirtDk);
-    }
-    if (look.torn) {
-      g.fillStyle = look.skin;
-      g.fillRect(torsoX + 4, y0 + 40, 5, 5);
-    }
-    if (look.badge) {
-      g.fillStyle = look.badge;
-      g.fillRect(torsoX + torsoW - 10, y0 + 34, 5, 5);
-      g.fillStyle = '#fff';
-      g.fillRect(torsoX + torsoW - 9, y0 + 35, 2, 2);
-    }
-    if (look.coat) {
-      g.fillStyle = look.jacketDk;
-      g.fillRect(torsoX - 2, y0 + 46, torsoW + 4, 12);
-      g.fillStyle = look.jacketHi;
-      g.fillRect(torsoX, y0 + 47, 2, 8);
-    }
-    g.globalAlpha = 0.16;
-    g.fillStyle = '#140c18';
-    for (let seam = y0 + 34; seam < y0 + 50; seam += 4) g.fillRect(torsoX + 2, seam, Math.max(4, torsoW - 5), 1);
-    g.globalAlpha = 1;
-
-    const reach = attack ? 10 : 0;
-    const armOff = attack ? 0 : swing * 0.35;
-    grad(torsoX - 6 - reach * 0.2 + armOff, y0 + 32, 7, 16, look.jacket, look.jacketDk);
-    grad(torsoX + torsoW - 2 + reach - armOff, y0 + 32, 7, 16, look.jacketHi, look.jacketDk);
-    const skinG = g.createLinearGradient(0, y0 + 46, 0, y0 + 54);
-    skinG.addColorStop(0, look.skinHi);
-    skinG.addColorStop(1, look.skinDk);
-    g.fillStyle = skinG;
-    g.fillRect(torsoX - 5 - reach * 0.2 + armOff, y0 + 46, 6, 6);
-    g.fillRect(torsoX + torsoW - 1 + reach - armOff, y0 + 46, 6, 6);
-    if (look.stick) {
-      g.fillStyle = '#d5d0dc';
-      g.fillRect(torsoX + torsoW + 4 + reach, y0 + 28, 2, 18);
+      cell(torsoX + 1, 11, torsoW - 2, 1, '#ffe9a0');
+      cell(torsoX + (torsoW / 2 | 0), 12, 1, 2, '#ffe9a0');
     }
 
-    const hx = ox + (side ? 18 : 14);
-    const hw = side ? 16 : 20;
-    const face = g.createLinearGradient(hx, y0 + 12, hx + hw, y0 + 32);
-    face.addColorStop(0, look.skinHi);
-    face.addColorStop(0.55, look.skin);
-    face.addColorStop(1, look.skinDk);
-    g.fillStyle = face;
-    g.fillRect(hx, y0 + 14, hw, 18);
+    const reach = attack ? 3 : 0;
+    cell(torsoX - 2, 9, 2, 5, look.jacketDk || look.jacket);
+    cell(torsoX + torsoW - reach * 0 + reach, 8, 2 + (attack ? 2 : 0), 5, look.jacketHi || look.jacket);
+    cell(torsoX - 2, 13, 2, 2, look.skin);
+    cell(torsoX + torsoW + reach, 12, 2, 2, look.skin);
+    if (look.stick) cell(torsoX + torsoW + 2 + reach, 7, 1, 7, '#d5d0dc');
+
+    const hx = (side ? 6 : 5) + ox;
+    const hw = side ? 5 : 6;
+    cell(hx, 3, hw, 5, look.skin);
+    cell(hx, 3, 1, 4, look.skinHi || look.skin);
     if (look.hat) {
-      const hat = g.createLinearGradient(hx - 3, y0 + 4, hx, y0 + 16);
-      hat.addColorStop(0, look.hatHi);
-      hat.addColorStop(1, look.hat);
-      g.fillStyle = hat;
-      g.fillRect(hx - 3, y0 + 8, hw + 6, 8);
-      g.fillRect(hx - 1, y0 + 4, hw + 2, 6);
+      cell(hx - 1, 2, hw + 2, 2, look.hat);
+      cell(hx, 1, hw, 2, look.hatHi || look.hat);
     } else if (look.cap) {
-      g.fillStyle = look.hair;
-      g.fillRect(hx - 1, y0 + 12, hw + 2, 6);
-      const cap = g.createLinearGradient(hx - 2, y0 + 4, hx, y0 + 16);
-      cap.addColorStop(0, look.capHi || '#fff');
-      cap.addColorStop(1, look.cap);
-      g.fillStyle = cap;
-      g.fillRect(hx - 3, y0 + 6, hw + 6, 8);
-      g.fillStyle = 'rgba(255,255,255,0.55)';
-      g.fillRect(hx, y0 + 7, 5, 2);
+      cell(hx - 1, 2, hw + 2, 2, look.cap);
+      cell(hx + hw - 1, 3, 2, 1, look.capHi || look.cap);
     } else if (look.bald) {
-      g.fillStyle = look.skinHi;
-      g.fillRect(hx + 2, y0 + 10, hw - 4, 4);
+      cell(hx + 1, 2, hw - 2, 1, look.skinHi || look.skin);
     } else if (look.mohawk) {
-      const moh = g.createLinearGradient(hx, y0, hx + 8, y0 + 16);
-      moh.addColorStop(0, '#ffd0e4');
-      moh.addColorStop(0.5, look.mohawk);
-      moh.addColorStop(1, '#8a1848');
-      g.fillStyle = moh;
-      g.fillRect(hx + 6, y0 - 2, 6, 18);
+      cell(hx + 2, 0, 2, 5, look.mohawk);
     } else {
-      const hair = g.createLinearGradient(hx, y0 + 4, hx, y0 + 18);
-      hair.addColorStop(0, look.hairHi);
-      hair.addColorStop(1, look.hair);
-      g.fillStyle = hair;
-      g.fillRect(hx - 1, y0 + 6, hw + 2, 12);
-      g.fillStyle = look.hairHi;
-      g.fillRect(hx + 2, y0 + 7, 4, 2);
+      cell(hx - 1, 2, hw + 2, 3, look.hair || '#2a160f');
+      cell(hx, 2, 2, 1, look.hairHi || look.hair || '#8a5a3a');
       if (look.longHair) {
-        g.fillStyle = look.hair;
-        g.fillRect(hx - 2, y0 + 16, 4, 18);
-        g.fillRect(hx + hw - 2, y0 + 16, 4, 18);
-        g.fillStyle = look.hairHi;
-        g.fillRect(hx - 1, y0 + 18, 2, 6);
+        cell(hx - 1, 5, 1, 6, look.hair);
+        cell(hx + hw, 5, 1, 6, look.hair);
       }
     }
 
     if (!back || dir === 'ne') {
-      g.fillStyle = '#140c18';
       if (side) {
-        g.fillRect(hx + 9, y0 + 20, 4, 4);
-        g.fillStyle = '#ffffff';
-        g.fillRect(hx + 10, y0 + 20, 2, 2);
-        g.fillStyle = look.skinDk;
-        g.fillRect(hx + 13, y0 + 24, 3, 3);
+        cell(hx + 3, 5, 2, 1, '#140c18');
+        cell(hx + 3, 5, 1, 1, '#fff');
+        cell(hx + 4, 6, 1, 1, look.skinDk || look.skin);
+      } else if (look.shades) {
+        cell(hx, 5, hw, 1, '#100c16');
+        cell(hx, 5, 2, 1, '#9ee7ff');
+        cell(hx + hw - 2, 5, 2, 1, '#ff8ac0');
       } else {
-        const shift = dir === 'se' ? 2 : 0;
-        if (look.shades) {
-          g.fillStyle = '#100c16';
-          g.fillRect(hx + 1 + shift, y0 + 19, hw - 2, 6);
-          g.fillStyle = 'rgba(150, 230, 255, 0.85)';
-          g.fillRect(hx + 2 + shift, y0 + 20, 6, 3);
-          g.fillStyle = 'rgba(255, 140, 190, 0.8)';
-          g.fillRect(hx + hw - 9 + shift, y0 + 20, 6, 3);
-        } else {
-          g.fillStyle = look.eye || '#140c18';
-          g.fillRect(hx + 3 + shift, y0 + 20, 4, 4);
-          g.fillRect(hx + 11 + shift, y0 + 20, 4, 4);
-          g.fillStyle = '#ffffff';
-          g.fillRect(hx + 3 + shift, y0 + 20, 2, 2);
-          g.fillRect(hx + 11 + shift, y0 + 20, 2, 2);
-        }
-        g.fillStyle = look.mouth || '#c4847c';
-        g.fillRect(hx + 6 + shift, y0 + 27, 8, 2);
-        if (look.beard) {
-          g.fillStyle = look.hair;
-          g.fillRect(hx + 4 + shift, y0 + 26, 12, 5);
-        }
+        const eye = look.eye || '#140c18';
+        cell(hx + 1, 5, 1, 1, eye);
+        cell(hx + hw - 2, 5, 1, 1, eye);
+        g.fillStyle = '#fff';
+        g.fillRect((hx + 1) * u, 5 * u, Math.max(1, u - 1), Math.max(1, u - 1));
+        g.fillRect((hx + hw - 2) * u, 5 * u, Math.max(1, u - 1), Math.max(1, u - 1));
+        if (look.beard) cell(hx + 1, 7, hw - 2, 1, look.hair || '#2a160f');
+        else cell(hx + 2, 7, Math.max(2, hw - 4), 1, look.mouth || '#c4847c');
       }
     }
 
-    g.fillStyle = 'rgba(20, 12, 24, 0.35)';
-    g.fillRect(torsoX + 2, y0 + 32, 1, 16);
-    g.fillStyle = 'rgba(255,255,255,0.22)';
-    g.fillRect(torsoX + torsoW - 7, y0 + 36, 3, 3);
-    g.fillStyle = 'rgba(40, 28, 18, 0.35)';
-    g.fillRect(legL + 1, y0 + 58, 4, 3);
-
     if (big) {
-      const crown = g.createLinearGradient(18, 0, 60, 16);
-      crown.addColorStop(0, '#fff6c0');
-      crown.addColorStop(0.5, '#e6b325');
-      crown.addColorStop(1, '#a87410');
-      g.fillStyle = crown;
-      g.fillRect(22, y0, 8, 10);
-      g.fillRect(32, y0 - 2, 10, 12);
-      g.fillRect(44, y0, 8, 10);
-      g.fillStyle = '#fff';
-      g.fillRect(34, y0, 3, 3);
-      const coat = g.createLinearGradient(8, y0 + 28, 70, y0 + 70);
-      coat.addColorStop(0, '#d2b0ff');
-      coat.addColorStop(0.4, '#6a3ad0');
-      coat.addColorStop(1, '#2a1848');
-      g.fillStyle = coat;
-      g.fillRect(8, y0 + 32, 62, 28);
-      g.fillStyle = '#ff4d8d';
-      g.fillRect(30, y0 + 36, 16, 8);
-      g.fillStyle = '#ffe9a0';
-      g.fillRect(24, y0 + 48, 30, 3);
+      cell(6, 0, 2, 2, '#e6b325');
+      cell(8, 0, 2, 3, '#fff6c0');
+      cell(10, 0, 2, 2, '#a87410');
+      cell(5, 9, 8, 4, '#6a3ad0');
+      cell(7, 10, 4, 2, '#ff4d8d');
     }
-
-    g.globalCompositeOperation = 'source-atop';
-    const rim = g.createLinearGradient(0, 0, W, H);
-    rim.addColorStop(0, 'rgba(255, 252, 245, 0.30)');
-    rim.addColorStop(0.45, 'rgba(255,255,255,0)');
-    rim.addColorStop(1, 'rgba(30, 16, 48, 0.28)');
-    g.fillStyle = rim;
-    g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = 'source-over';
-    return outline(c, big ? 3 : 2);
+    return outline(c, 1);
   }
 
   function pack(look, big) {

@@ -40,6 +40,34 @@ body {
   transform-origin: center center;
 }
 
+#stick {
+  position: absolute;
+  z-index: 20;
+  left: 16px;
+  bottom: 16px;
+  width: 116px;
+  height: 116px;
+  border-radius: 58px;
+  background: rgba(20, 16, 24, 0.5);
+  border: 3px solid var(--paper);
+  touch-action: none;
+}
+
+#stick-knob {
+  position: absolute;
+  left: 36px;
+  top: 36px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--yellow);
+  border: 3px solid var(--ink);
+}
+
+@media (min-width: 1100px) {
+  #stick, .touch-help { display: none; }
+}
+
 canvas {
   display: block;
   width: 1280px;
