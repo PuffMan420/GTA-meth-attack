@@ -8,6 +8,7 @@
   const TW = 6;
   const WORLD = MAP * TILE;
   const MAX_ENEMIES = 65;
+  // One world unit: 1 tile = 1 meter. A person is 1 tile wide and about 1.7 m tall.
 
   const T_ROAD = 1;
   const T_SIDE = 2;
@@ -143,7 +144,11 @@
   let slowStreak = 0;
   let fastStreak = 0;
   let lightCanvas = null;
-  let bloomCanvas = null;
+  let cityGlow = null;
+  let cityGlowQ = null;
+  let bloomHalf = null;
+  let bloomQuarter = null;
+  let blurOK = null;
   let dofCanvas = null;
   let fxFrame = 0;
   const spr = {};
@@ -283,10 +288,10 @@
     return c;
   }
 
-  function outlined(w, h, draw) {
-    const src = pixCanvas(w, h, draw);
-    const sctx = src.getContext('2d');
-    const data = sctx.getImageData(0, 0, w, h).data;
+  function outlineImage(src) {
+    const w = src.width;
+    const h = src.height;
+    const data = src.getContext('2d').getImageData(0, 0, w, h).data;
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
@@ -320,6 +325,29 @@
     }
     g.putImageData(img, 0, 0);
     return c;
+  }
+
+  function outlined(w, h, draw) {
+    return outlineImage(pixCanvas(w, h, draw));
+  }
+
+  // Nearest-neighbor fit, then a fresh 1 px outline so the silhouette stays readable.
+  function fitOutlined(src, w, h) {
+    const bw = Math.max(1, w - 2);
+    const bh = Math.max(1, h - 2);
+    const body = document.createElement('canvas');
+    body.width = bw;
+    body.height = bh;
+    const bg = body.getContext('2d');
+    bg.imageSmoothingEnabled = false;
+    bg.drawImage(src, 0, 0, bw, bh);
+    const framed = document.createElement('canvas');
+    framed.width = w;
+    framed.height = h;
+    const fg = framed.getContext('2d');
+    fg.imageSmoothingEnabled = false;
+    fg.drawImage(body, 1, 1);
+    return outlineImage(framed);
   }
 
   function tinted(src, color) {
@@ -528,7 +556,13 @@
       pants: '#241430', pants2: '#3a2060', pantsHi: '#7a48c0',
       shoe: COL.shoe,
     });
-    spr.boss = [0, 1].map((f) => outlined(68, 74, (p) => paintBoss(p, f)));
+    const person = (frames) => frames.map((s) => fitOutlined(s, 16, 27));
+    spr.player = person(spr.player);
+    spr.zombie = person(spr.zombie);
+    spr.alfa = person(spr.alfa);
+    spr.cop = person(spr.cop);
+    spr.dealer = person(spr.dealer);
+    spr.boss = [0, 1].map((f) => fitOutlined(outlined(68, 74, (p) => paintBoss(p, f)), 26, 38));
     spr.bossHot = spr.boss.map((s) => tinted(s, '#ff4d6d'));
     spr.white = {
       player: spr.player.map((s) => tinted(s, '#ffffff')),
@@ -607,25 +641,14 @@
       p(6, 6, '#ff4d8d', 1, 1);
       p(3, 8, '#7a28a8', 6, 1);
     });
-    const grow = (img) => crispScale(img, 2);
-    spr.crystal = grow(spr.crystal);
-    spr.gem = spr.gem.map(grow);
-    spr.gemMid = spr.gemMid.map(grow);
-    spr.gemBig = spr.gemBig.map(grow);
-    spr.cart = grow(spr.cart);
-    spr.speaker = grow(spr.speaker);
-    spr.bottle = grow(spr.bottle);
-    spr.bag = grow(spr.bag);
-  }
-
-  function crispScale(src, factor) {
-    const c = document.createElement('canvas');
-    c.width = src.width * factor;
-    c.height = src.height * factor;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(src, 0, 0, c.width, c.height);
-    return c;
+    spr.crystal = fitOutlined(spr.crystal, 8, 8);
+    spr.gem = spr.gem.map((s) => fitOutlined(s, 8, 8));
+    spr.gemMid = spr.gemMid.map((s) => fitOutlined(s, 8, 8));
+    spr.gemBig = spr.gemBig.map((s) => fitOutlined(s, 10, 10));
+    spr.cart = fitOutlined(spr.cart, 16, 14);
+    spr.speaker = fitOutlined(spr.speaker, 14, 14);
+    spr.bottle = fitOutlined(spr.bottle, 6, 12);
+    spr.bag = fitOutlined(spr.bag, 8, 8);
   }
 
   function blockKind(bx, by) {
@@ -858,6 +881,26 @@
     }
   }
 
+  function stretchStreetCars() {
+    for (let ty = 0; ty < MAP; ty++) {
+      for (let tx = 0; tx < MAP; tx++) {
+        if (tiles[ty * MAP + tx] !== T_CAR) continue;
+        const mx = tx % PERIOD;
+        const my = ty % PERIOD;
+        if (!(mx < TW || my < TW)) continue;
+        const horiz = my < TW && !(mx < TW);
+        for (let d = -2; d <= 2; d++) {
+          if (!d) continue;
+          const nx = tx + (horiz ? d : 0);
+          const ny = ty + (horiz ? 0 : d);
+          if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue;
+          const ni = ny * MAP + nx;
+          if (tiles[ni] === T_ROAD) solid[ni] = 1;
+        }
+      }
+    }
+  }
+
   function buildMap() {
     tiles = new Uint8Array(MAP * MAP);
     solid = new Uint8Array(MAP * MAP);
@@ -869,6 +912,7 @@
         solid[i] = (t === T_BUILD || t === T_TREE || t === T_CAR || t === T_FOUNT) ? 1 : 0;
       }
     }
+    stretchStreetCars();
     paintMap();
     buildProps();
   }
@@ -893,8 +937,9 @@
   }
 
   function makeBuildingSprite(fw, fh, pal, seed) {
-    const wallH = 58 + (seed % 3) * 8;
-    const roofD = 46 + ((seed >> 3) % 3) * 6;
+    // Two storeys, each about 1.7x a person's height. Door matches a person.
+    const wallH = 90 + (seed % 3) * 4;
+    const roofD = 30 + ((seed >> 3) % 3) * 4;
     const eaves = 8;
     const w = fw + eaves * 2;
     const h = roofD + wallH + 6;
@@ -931,136 +976,153 @@
     g.fillRect(eaves + fw - 14, wallTop + 2, 8, wallH - 4);
     const lights = [];
     const neon = NEONS[seed % NEONS.length];
+    const winW = 12;
+    const winH = 14;
+    const doorW = 14;
+    const doorH = 27;
+    const doorX = eaves + ((fw / 2) | 0) - ((doorW / 2) | 0);
+    const doorY = wallTop + wallH - doorH - 2;
     for (let row = 0; row < 2; row++) {
       for (let col = 0; col < 4; col++) {
-        const wx = eaves + 14 + col * 28;
-        const wy = wallTop + 8 + row * 22;
-        if (wx + 16 > eaves + fw - 16) continue;
+        const wx = eaves + 16 + col * 30;
+        const wy = wallTop + 10 + row * 46;
+        if (wx + winW > eaves + fw - 16) continue;
+        if (wy + winH > doorY && wx + winW > doorX - 4 && wx < doorX + doorW + 4) continue;
         const lit = ((seed + row * 5 + col * 3) % 5) !== 0;
         g.fillStyle = '#100c14';
-        g.fillRect(wx, wy, 16, 12);
+        g.fillRect(wx, wy, winW, winH);
         g.fillStyle = lit ? pal.win : pal.off;
-        g.fillRect(wx + 1, wy + 1, 14, 10);
+        g.fillRect(wx + 1, wy + 1, winW - 2, winH - 2);
         g.fillStyle = '#140c18';
-        g.fillRect(wx + 7, wy + 1, 1, 10);
-        g.fillRect(wx + 1, wy + 5, 14, 1);
+        g.fillRect(wx + ((winW / 2) | 0), wy + 1, 1, winH - 2);
+        g.fillRect(wx + 1, wy + ((winH / 2) | 0), winW - 2, 1);
         if (lit) {
           g.globalAlpha = 0.7;
-          g.fillStyle = '#fff';
+          g.fillStyle = '#fff6c4';
           g.fillRect(wx + 2, wy + 2, 3, 2);
           g.globalAlpha = 1;
-          if (lights.length < 2) lights.push({ x: wx + 8, y: wy + 6 });
+          if (lights.length < 3) lights.push({ x: wx + ((winW / 2) | 0), y: wy + ((winH / 2) | 0) });
         }
       }
     }
-    const doorX = eaves + ((fw / 2) | 0) - 9;
-    const doorY = wallTop + wallH - 28;
     g.fillStyle = '#140e0c';
-    g.fillRect(doorX, doorY, 18, 26);
+    g.fillRect(doorX, doorY, doorW, doorH);
     g.fillStyle = '#4a3020';
-    g.fillRect(doorX + 2, doorY + 2, 14, 22);
+    g.fillRect(doorX + 2, doorY + 2, doorW - 4, doorH - 4);
     g.fillStyle = pal.win;
-    g.fillRect(doorX + 4, doorY + 4, 10, 6);
+    g.fillRect(doorX + 3, doorY + 3, doorW - 6, 6);
     g.fillStyle = COL.gold;
-    g.fillRect(doorX + 12, doorY + 14, 2, 2);
+    g.fillRect(doorX + doorW - 5, doorY + 14, 2, 2);
     g.fillStyle = '#100c14';
-    g.fillRect(doorX - 2, doorY - 10, 22, 8);
+    g.fillRect(doorX - 3, doorY - 8, doorW + 6, 7);
     g.fillStyle = neon;
-    g.fillRect(doorX, doorY - 8, 18, 5);
+    g.fillRect(doorX - 1, doorY - 6, doorW + 2, 4);
     g.fillStyle = '#fff';
     g.globalAlpha = 0.45;
-    g.fillRect(doorX + 2, doorY - 7, 4, 1);
+    g.fillRect(doorX + 1, doorY - 5, 4, 1);
     g.globalAlpha = 1;
-    lights.push({ x: doorX + 9, y: doorY - 6 });
+    lights.push({ x: doorX + ((doorW / 2) | 0), y: doorY - 4 });
     return { canvas: c, lights: lights, eaves: eaves };
   }
 
   function makeTreeSprite() {
     const c = document.createElement('canvas');
-    c.width = 40;
-    c.height = 58;
+    c.width = 56;
+    c.height = 80;
     const g = c.getContext('2d');
     g.fillStyle = '#0b3a20';
-    g.fillRect(2, 8, 36, 26);
+    g.fillRect(4, 18, 48, 36);
     g.fillStyle = '#145c30';
-    g.fillRect(6, 2, 28, 26);
+    g.fillRect(10, 8, 36, 40);
     g.fillStyle = '#1f7a40';
-    g.fillRect(10, 4, 16, 16);
-    g.fillStyle = COL.leaf;
-    g.fillRect(12, 6, 6, 4);
+    g.fillRect(16, 12, 22, 22);
+    g.fillStyle = '#2f9a50';
+    g.fillRect(20, 16, 8, 6);
     g.fillStyle = '#0e4a28';
-    g.fillRect(22, 14, 8, 8);
+    g.fillRect(30, 22, 12, 12);
     g.fillStyle = '#3a2416';
-    g.fillRect(17, 32, 6, 24);
+    g.fillRect(24, 50, 8, 28);
     g.fillStyle = '#6b4030';
-    g.fillRect(17, 32, 2, 20);
+    g.fillRect(24, 50, 3, 24);
     return c;
   }
 
   function makeLampSprite() {
     const c = document.createElement('canvas');
-    c.width = 16;
-    c.height = 52;
+    c.width = 14;
+    c.height = 72;
     const g = c.getContext('2d');
-    g.fillStyle = '#2a2834';
-    g.fillRect(6, 10, 4, 40);
+    g.fillStyle = '#1a1822';
+    g.fillRect(5, 16, 4, 52);
     g.fillStyle = '#4a4658';
-    g.fillRect(6, 10, 1, 40);
-    g.fillStyle = '#1a1820';
-    g.fillRect(2, 6, 12, 6);
-    g.fillStyle = '#ffe9a0';
-    g.fillRect(3, 7, 10, 4);
-    g.fillStyle = '#fff';
-    g.fillRect(5, 8, 3, 1);
+    g.fillRect(5, 16, 1, 52);
+    g.fillStyle = '#2a2834';
+    g.fillRect(1, 8, 12, 8);
+    g.fillStyle = '#ffe07a';
+    g.fillRect(2, 9, 10, 6);
+    g.fillStyle = '#fff3c0';
+    g.fillRect(4, 10, 5, 3);
+    g.fillStyle = '#3a3844';
+    g.fillRect(2, 66, 10, 4);
     return c;
   }
 
   function makeCarSprite(color, horizontal) {
+    // 4.5 m long and about 2.25 m wide, wider than a person is tall.
     const c = document.createElement('canvas');
-    c.width = horizontal ? 30 : 22;
-    c.height = horizontal ? 26 : 34;
+    c.width = horizontal ? 72 : 36;
+    c.height = horizontal ? 36 : 72;
     const g = c.getContext('2d');
-    g.fillStyle = '#0c0a10';
+    const hi = mixHex(color, 0.28);
+    const glass = '#9fd4ea';
     if (horizontal) {
-      g.fillRect(2, 8, 26, 14);
+      g.fillStyle = '#0c0a10';
+      g.fillRect(2, 6, 68, 26);
       g.fillStyle = color;
-      g.fillRect(3, 9, 24, 12);
-      g.fillStyle = mixHex(color, 0.28);
-      g.fillRect(3, 9, 24, 3);
+      g.fillRect(4, 8, 64, 22);
+      g.fillStyle = hi;
+      g.fillRect(4, 8, 64, 6);
       g.fillStyle = '#102028';
-      g.fillRect(6, 4, 12, 8);
-      g.fillStyle = '#9fd4ea';
-      g.fillRect(7, 5, 10, 5);
+      g.fillRect(22, 4, 26, 14);
+      g.fillStyle = glass;
+      g.fillRect(24, 6, 22, 10);
       g.fillStyle = '#fff';
-      g.fillRect(8, 6, 3, 1);
-      g.fillStyle = '#ffe14a';
-      g.fillRect(24, 11, 3, 2);
+      g.fillRect(26, 7, 6, 3);
+      g.fillStyle = '#ffe07a';
+      g.fillRect(62, 12, 6, 4);
       g.fillStyle = '#ff3b4e';
-      g.fillRect(3, 17, 3, 2);
+      g.fillRect(4, 20, 6, 4);
       g.fillStyle = '#141018';
-      g.fillRect(4, 18, 5, 5);
-      g.fillRect(20, 18, 5, 5);
+      g.fillRect(10, 26, 12, 8);
+      g.fillRect(50, 26, 12, 8);
+      g.fillStyle = '#5a5468';
+      g.fillRect(12, 28, 4, 3);
+      g.fillRect(52, 28, 4, 3);
     } else {
-      g.fillRect(3, 4, 16, 26);
+      g.fillStyle = '#0c0a10';
+      g.fillRect(4, 2, 28, 68);
       g.fillStyle = color;
-      g.fillRect(4, 5, 14, 24);
-      g.fillStyle = mixHex(color, 0.28);
-      g.fillRect(4, 5, 4, 24);
+      g.fillRect(6, 4, 24, 64);
+      g.fillStyle = hi;
+      g.fillRect(6, 4, 7, 64);
       g.fillStyle = '#102028';
-      g.fillRect(5, 8, 12, 10);
-      g.fillStyle = '#9fd4ea';
-      g.fillRect(6, 9, 10, 7);
+      g.fillRect(6, 18, 24, 22);
+      g.fillStyle = glass;
+      g.fillRect(8, 20, 20, 18);
       g.fillStyle = '#fff';
-      g.fillRect(7, 10, 3, 2);
-      g.fillStyle = '#ffe14a';
-      g.fillRect(6, 26, 2, 2);
+      g.fillRect(10, 22, 6, 4);
+      g.fillStyle = '#ffe07a';
+      g.fillRect(10, 60, 5, 6);
       g.fillStyle = '#ff3b4e';
-      g.fillRect(14, 6, 2, 2);
+      g.fillRect(22, 6, 5, 6);
       g.fillStyle = '#141018';
-      g.fillRect(3, 6, 4, 5);
-      g.fillRect(15, 6, 4, 5);
-      g.fillRect(3, 24, 4, 5);
-      g.fillRect(15, 24, 4, 5);
+      g.fillRect(2, 10, 8, 12);
+      g.fillRect(26, 10, 8, 12);
+      g.fillRect(2, 50, 8, 12);
+      g.fillRect(26, 50, 8, 12);
+      g.fillStyle = '#5a5468';
+      g.fillRect(3, 12, 4, 4);
+      g.fillRect(27, 52, 4, 4);
     }
     return c;
   }
@@ -1118,7 +1180,7 @@
             lights.push({
               x: left + L.x,
               y: sortY - built.canvas.height + L.y,
-              r: 30,
+              r: i === built.lights.length - 1 ? 44 : 28,
               color: i === built.lights.length - 1 ? NEONS[seed % NEONS.length] : pal.win,
             });
           }
@@ -1157,42 +1219,104 @@
             img: treeSprite,
             x: px + TILE / 2 - treeSprite.width / 2,
             sortY: py + TILE - 1,
-            shadowW: 22,
-            shadowH: 8,
+            shadowW: 36,
+            shadowH: 10,
             lights: [],
             kind: 'tree',
           });
         } else if (t === T_CAR) {
           const mx = tx % PERIOD;
           const my = ty % PERIOD;
-          const horiz = my < TW && mx >= TW;
+          const onRoad = mx < TW || my < TW;
+          const horiz = onRoad ? (my < TW && mx >= TW) : ((hash(tx, ty) & 2) === 0);
+          let anchorX = px + TILE / 2;
+          let anchorY = py + TILE / 2;
+          if (!onRoad) {
+            const spot = claimLotCar(tx, ty, horiz);
+            if (!spot) continue;
+            anchorX = spot.x;
+            anchorY = spot.y;
+          }
           const color = CAR_COLORS[hash(tx, ty) % CAR_COLORS.length];
           const key = color + (horiz ? 'h' : 'v');
           if (!carCache[key]) carCache[key] = makeCarSprite(color, horiz);
           const img = carCache[key];
           props.push({
             img: img,
-            x: px + TILE / 2 - img.width / 2,
-            sortY: py + TILE - 1,
-            shadowW: horiz ? 24 : 16,
-            shadowH: 7,
-            lights: [],
+            x: anchorX - img.width / 2,
+            sortY: anchorY + img.height / 2,
+            shadowW: horiz ? 68 : 32,
+            shadowH: 10,
+            lights: horiz
+              ? [
+                { x: anchorX + 30, y: anchorY - 2, r: 16, color: '#ffe07a' },
+                { x: anchorX - 30, y: anchorY + 2, r: 12, color: '#ff5a6a' },
+              ]
+              : [
+                { x: anchorX - 2, y: anchorY + 30, r: 16, color: '#ffe07a' },
+                { x: anchorX + 4, y: anchorY - 30, r: 12, color: '#ff5a6a' },
+              ],
             kind: 'car',
           });
         }
       }
     }
+    buildCityGlow();
+  }
+
+  const carClaim = new Uint8Array(MAP * MAP);
+
+  function claimLotCar(tx, ty, horiz) {
+    const shifts = [0, 1, -1, 2, -2];
+    for (let s = 0; s < shifts.length; s++) {
+      const shift = shifts[s];
+      const cells = [];
+      let ok = true;
+      let minX = MAP;
+      let maxX = 0;
+      let minY = MAP;
+      let maxY = 0;
+      for (let d = -2; d <= 2; d++) {
+        const nx = tx + (horiz ? d + shift : 0);
+        const ny = ty + (horiz ? 0 : d + shift);
+        if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) {
+          ok = false;
+          break;
+        }
+        const ni = ny * MAP + nx;
+        const kind = tiles[ni];
+        if ((kind !== T_LOT && kind !== T_CAR) || carClaim[ni]) {
+          ok = false;
+          break;
+        }
+        cells.push(ni);
+        if (nx < minX) minX = nx;
+        if (nx > maxX) maxX = nx;
+        if (ny < minY) minY = ny;
+        if (ny > maxY) maxY = ny;
+      }
+      if (!ok) continue;
+      for (let i = 0; i < cells.length; i++) {
+        carClaim[cells[i]] = 1;
+        solid[cells[i]] = 1;
+      }
+      return {
+        x: ((minX + maxX + 1) * TILE) / 2,
+        y: ((minY + maxY + 1) * TILE) / 2,
+      };
+    }
+    return null;
   }
 
   function addLamp(x, y) {
-    if (isSolid(x, y) || isSolid(x + 8, y)) return;
+    if (isSolid(x, y) || isSolid(x + 6, y)) return;
     props.push({
       img: lampSprite,
-      x: x - 8,
-      sortY: y + 4,
-      shadowW: 14,
-      shadowH: 6,
-      lights: [{ x: x, y: y - 36, r: 78, color: '#ffe7a8' }],
+      x: x - (lampSprite.width >> 1),
+      sortY: y,
+      shadowW: 12,
+      shadowH: 5,
+      lights: [{ x: x, y: y - 60, r: 56, color: '#ffe7a8' }],
       kind: 'lamp',
     });
   }
@@ -1257,7 +1381,8 @@
       vignette = null;
       vignetteKey = '';
       lightCanvas = null;
-      bloomCanvas = null;
+      bloomHalf = null;
+      bloomQuarter = null;
       dofCanvas = null;
     }
     canvas.style.width = (w * pixel) + 'px';
@@ -1348,7 +1473,7 @@
 
   function spawnBark(x, y, text, color) {
     if (barks.length >= 4) return;
-    barks.push({ x: x, y: y - 16, text: text, color: color || '#fff', life: 1.15, max: 1.15 });
+    barks.push({ x: x, y: y - 32, text: text, color: color || '#fff', life: 1.15, max: 1.15 });
   }
 
   function maybeBark(e) {
@@ -1365,13 +1490,13 @@
   function spdMul() { return 1 + Math.min(0.28, elapsed * 0.0015); }
 
   function makeEnemy(type, x, y) {
-    const open = findOpen(x, y, type === 'boss' ? 16 : 10) || { x: x, y: y };
+    const open = findOpen(x, y, type === 'boss' ? 12 : 8) || { x: x, y: y };
     const base = {
-      zombie: { hp: 16, speed: 44, dmg: 8, r: 9, xp: 2 },
-      cop: { hp: 26, speed: 76, dmg: 11, r: 9, xp: 3 },
-      dealer: { hp: 20, speed: 56, dmg: 6, r: 9, xp: 4 },
-      alfa: { hp: 64, speed: 42, dmg: 14, r: 12, xp: 8 },
-      boss: { hp: 480, speed: 48, dmg: 16, r: 16, xp: 40 },
+      zombie: { hp: 16, speed: 44, dmg: 8, r: 6, xp: 2 },
+      cop: { hp: 26, speed: 76, dmg: 11, r: 6, xp: 3 },
+      dealer: { hp: 20, speed: 56, dmg: 6, r: 6, xp: 4 },
+      alfa: { hp: 64, speed: 42, dmg: 14, r: 8, xp: 8 },
+      boss: { hp: 480, speed: 48, dmg: 16, r: 10, xp: 40 },
     }[type];
     const e = {
       id: nextId++,
@@ -1616,7 +1741,7 @@
         crystal.t = crystalCd();
         sfx.shoot(820);
         const base = Math.atan2(targets[0].y - player.y, targets[0].x - player.x);
-        muzzle(player.x + Math.cos(base) * 12, player.y - 4 + Math.sin(base) * 12, base, '#fff6b0');
+        muzzle(player.x + Math.cos(base) * 8, player.y - 2 + Math.sin(base) * 8, base, '#fff6b0');
         for (let i = 0; i < count; i++) {
           if (shots.length > 160) break;
           let ang;
@@ -1625,12 +1750,12 @@
           shots.push({
             kind: 'crystal',
             x: player.x,
-            y: player.y - 4,
+            y: player.y - 2,
             vx: Math.cos(ang) * 300,
             vy: Math.sin(ang) * 300,
             life: 0.75,
             alive: true,
-            r: 4,
+            r: 6,
             dmg: crystalDmg(),
             pierce: crystal.pierceLv,
             seen: new Set(),
@@ -1656,7 +1781,7 @@
           if (globalTime - (e.cartT || 0) < 0.42) continue;
           const dx = e.x - x;
           const dy = e.y - y;
-          const reach = 11 + e.radius;
+          const reach = 14 + e.radius;
           if (dx * dx + dy * dy <= reach * reach) {
             e.cartT = globalTime;
             hurtEnemy(e, cartDmg(), x, y);
@@ -1684,19 +1809,19 @@
         sfx.bottle();
         const n = bottle.countLv;
         const base = Math.atan2(ay, ax);
-        muzzle(player.x + Math.cos(base) * 10, player.y - 2 + Math.sin(base) * 10, base, '#d8ffe8');
+        muzzle(player.x + Math.cos(base) * 8, player.y - 2 + Math.sin(base) * 8, base, '#d8ffe8');
         for (let i = 0; i < n; i++) {
           if (shots.length > 160) break;
           const ang = base + (i - (n - 1) / 2) * 0.34;
           shots.push({
             kind: 'bottle',
             x: player.x,
-            y: player.y - 4,
+            y: player.y - 2,
             vx: Math.cos(ang) * 210,
             vy: Math.sin(ang) * 210,
             life: 0.55,
             alive: true,
-            r: 4,
+            r: 6,
             dmg: bottleDmg(),
             boom: bottleRadius(),
             pierce: 0,
@@ -1816,11 +1941,11 @@
             vx: nx * sp,
             vy: ny * sp,
             life: 1.7,
-            r: 4,
+            r: 6,
             dmg: e.shotDmg,
             alive: true,
           });
-          muzzle(e.x + nx * 10, e.y + ny * 8, Math.atan2(ny, nx), '#e2b6ff');
+          muzzle(e.x + nx * 8, e.y + ny * 6, Math.atan2(ny, nx), '#e2b6ff');
           sfx.shoot(210);
         }
       } else if (e.type === 'boss') {
@@ -1887,7 +2012,7 @@
         g.vx *= Math.exp(-3 * dt);
         g.vy *= Math.exp(-3 * dt);
       }
-      if (d < player.radius + 14) {
+      if (d < player.radius + 18) {
         g.alive = false;
         if (globalTime - sfx.gemAt > 0.05) {
           sfx.gemAt = globalTime;
@@ -2041,15 +2166,15 @@
     if (pr.kind === 'lamp') {
       const pulse = 0.55 + Math.sin(globalTime * 4 + pr.x) * 0.2;
       ctx.globalAlpha = pulse;
-      ctx.fillStyle = '#fff6c8';
-      ctx.fillRect(x + 4, y + 8, 8, 3);
+      ctx.fillStyle = '#fff3c0';
+      ctx.fillRect(x + 3, y + 9, 8, 4);
       ctx.globalAlpha = 1;
     } else if (pr.kind === 'fountain') {
       const r = 4 + ((globalTime * 8) % 7);
       ctx.strokeStyle = '#d8fbff';
       ctx.globalAlpha = 0.45;
       ctx.beginPath();
-      ctx.arc(Math.round(pr.x + pr.img.width / 2 - cam.x), Math.round(pr.sortY - cam.y - 16), r, 0, Math.PI * 2);
+      ctx.arc(Math.round(pr.x + pr.img.width / 2 - cam.x), Math.round(pr.sortY - cam.y - 30), r, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
@@ -2066,9 +2191,9 @@
     const rate = ent === player && player.moving ? 9 : 6;
     const frame = ((globalTime * rate + (ent.phase || 0)) | 0) % len;
     const img = actorSprite(ent, frame);
-    const foot = Math.max(6, (ent.radius * 0.7) | 0);
-    drawShadow(ent.x, ent.y + ent.radius * 0.35, ent.radius + 3);
-    drawSprite(img, ent.x, ent.y + ent.radius * 0.15, ent.facing < 0, foot);
+    const foot = 2;
+    drawShadow(ent.x, ent.y + 1, Math.max(4, (ent.radius * 0.85) | 0));
+    drawSprite(img, ent.x, ent.y, ent.facing < 0, foot);
   }
 
   function onScreen(x, y, m) {
@@ -2298,20 +2423,7 @@
     }
     l.globalCompositeOperation = 'source-over';
     ctx.drawImage(lightCanvas, 0, 0);
-    if (quality !== 'low') {
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < n; i++) {
-        const L = lights[i];
-        ctx.globalAlpha = 0.14;
-        ctx.fillStyle = L.color;
-        ctx.beginPath();
-        ctx.arc(L.x - cam.x, L.y - cam.y, L.r * 0.42, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
-      paintBloom(lights, n);
-    }
+    paintBloom();
     ctx.globalCompositeOperation = 'multiply';
     ctx.globalAlpha = 0.16;
     ctx.fillStyle = '#9eb0dc';
@@ -2324,35 +2436,309 @@
     ctx.globalAlpha = 1;
   }
 
-  function paintBloom(lights, n) {
+  function blurSupported(g) {
+    if (blurOK !== null) return blurOK;
+    try {
+      g.filter = 'blur(1px)';
+      blurOK = g.filter === 'blur(1px)';
+    } catch (err) {
+      blurOK = false;
+    }
+    g.filter = 'none';
+    return blurOK;
+  }
+
+  function boxBlurCanvas(canvas, radius) {
+    const r = radius | 0;
+    if (r < 1) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const g = canvas.getContext('2d');
+    const img = g.getImageData(0, 0, w, h);
+    const src = img.data;
+    const tmp = new Uint8ClampedArray(src.length);
+    const div = r * 2 + 1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let rsum = 0;
+      let gsum = 0;
+      let bsum = 0;
+      let asum = 0;
+      for (let k = -r; k <= r; k++) {
+        const x = k < 0 ? 0 : (k >= w ? w - 1 : k);
+        const i = (row + x) * 4;
+        rsum += src[i];
+        gsum += src[i + 1];
+        bsum += src[i + 2];
+        asum += src[i + 3];
+      }
+      for (let x = 0; x < w; x++) {
+        const o = (row + x) * 4;
+        tmp[o] = rsum / div;
+        tmp[o + 1] = gsum / div;
+        tmp[o + 2] = bsum / div;
+        tmp[o + 3] = asum / div;
+        const x0 = x - r < 0 ? 0 : x - r;
+        const x1 = x + r + 1 >= w ? w - 1 : x + r + 1;
+        const i0 = (row + x0) * 4;
+        const i1 = (row + x1) * 4;
+        rsum += src[i1] - src[i0];
+        gsum += src[i1 + 1] - src[i0 + 1];
+        bsum += src[i1 + 2] - src[i0 + 2];
+        asum += src[i1 + 3] - src[i0 + 3];
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let rsum = 0;
+      let gsum = 0;
+      let bsum = 0;
+      let asum = 0;
+      for (let k = -r; k <= r; k++) {
+        const y = k < 0 ? 0 : (k >= h ? h - 1 : k);
+        const i = (y * w + x) * 4;
+        rsum += tmp[i];
+        gsum += tmp[i + 1];
+        bsum += tmp[i + 2];
+        asum += tmp[i + 3];
+      }
+      for (let y = 0; y < h; y++) {
+        const o = (y * w + x) * 4;
+        src[o] = rsum / div;
+        src[o + 1] = gsum / div;
+        src[o + 2] = bsum / div;
+        src[o + 3] = asum / div;
+        const y0 = y - r < 0 ? 0 : y - r;
+        const y1 = y + r + 1 >= h ? h - 1 : y + r + 1;
+        const i0 = (y0 * w + x) * 4;
+        const i1 = (y1 * w + x) * 4;
+        rsum += tmp[i1] - tmp[i0];
+        gsum += tmp[i1 + 1] - tmp[i0 + 1];
+        bsum += tmp[i1 + 2] - tmp[i0 + 2];
+        asum += tmp[i1 + 3] - tmp[i0 + 3];
+      }
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  const blurScratch = {};
+
+  function blurCanvas(canvas, radius) {
+    const rad = Math.max(1, radius | 0);
+    const g = canvas.getContext('2d');
+    if (blurSupported(g)) {
+      const key = canvas.width + 'x' + canvas.height;
+      let copy = blurScratch[key];
+      if (!copy) {
+        copy = document.createElement('canvas');
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        blurScratch[key] = copy;
+      }
+      const cg = copy.getContext('2d');
+      cg.clearRect(0, 0, copy.width, copy.height);
+      cg.drawImage(canvas, 0, 0);
+      g.clearRect(0, 0, canvas.width, canvas.height);
+      g.filter = 'blur(' + rad + 'px)';
+      g.drawImage(copy, 0, 0);
+      g.filter = 'none';
+      return;
+    }
+    boxBlurCanvas(canvas, rad);
+    if (rad > 2) boxBlurCanvas(canvas, rad - 1);
+  }
+
+  function extractBright(canvas) {
+    const g = canvas.getContext('2d');
+    const img = g.getImageData(0, 0, canvas.width, canvas.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i];
+      const gc = d[i + 1];
+      const b = d[i + 2];
+      const a = d[i + 3];
+      if (a < 8) {
+        d[i + 3] = 0;
+        continue;
+      }
+      const max = r > gc ? (r > b ? r : b) : (gc > b ? gc : b);
+      const min = r < gc ? (r < b ? r : b) : (gc < b ? gc : b);
+      const luma = (r * 3 + gc * 6 + b) * 0.1;
+      const sat = max > 0 ? (max - min) / max : 0;
+      if (max < 168 || luma < 112 || sat < 0.14) {
+        d[i + 3] = 0;
+        continue;
+      }
+      let knee = (luma - 112) / 100;
+      if (knee < 0) knee = 0;
+      else if (knee > 1) knee = 1;
+      knee = knee * knee * (3 - 2 * knee);
+      const warm = r >= b ? 1.05 : 0.96;
+      d[i] = Math.min(255, r * (0.72 + knee * 0.4) * warm);
+      d[i + 1] = Math.min(255, gc * (0.68 + knee * 0.38));
+      d[i + 2] = Math.min(255, b * (0.64 + knee * 0.4));
+      d[i + 3] = Math.min(255, 230 * knee);
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function buildCityGlow() {
+    const w = WORLD >> 1;
+    const h = WORLD >> 1;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    for (let i = 0; i < props.length; i++) {
+      const pr = props[i];
+      if (pr.kind === 'tree') continue;
+      if (pr.kind === 'car') {
+        for (let k = 0; k < pr.lights.length; k++) {
+          const L = pr.lights[k];
+          g.fillStyle = L.color;
+          g.fillRect(L.x * 0.5 - 1.5, L.y * 0.5 - 1.5, 3, 3);
+        }
+        continue;
+      }
+      const dw = Math.max(1, pr.img.width >> 1);
+      const dh = Math.max(1, pr.img.height >> 1);
+      g.drawImage(pr.img, pr.x * 0.5, (pr.sortY - pr.img.height) * 0.5, dw, dh);
+    }
+    extractBright(c);
+    fattenGlow(c);
+    blurCanvas(c, 6);
+    gainAlpha(c, 2.6);
+    cityGlow = c;
+    const q = document.createElement('canvas');
+    q.width = w >> 1;
+    q.height = h >> 1;
+    const qg = q.getContext('2d');
+    qg.drawImage(c, 0, 0, q.width, q.height);
+    blurCanvas(q, 8);
+    gainAlpha(q, 1.7);
+    cityGlowQ = q;
+  }
+
+  function fattenGlow(canvas) {
+    const key = 'fat-' + canvas.width + 'x' + canvas.height;
+    let copy = blurScratch[key];
+    if (!copy) {
+      copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+      blurScratch[key] = copy;
+    }
+    const cg = copy.getContext('2d');
+    cg.clearRect(0, 0, copy.width, copy.height);
+    cg.drawImage(canvas, 0, 0);
+    const g = canvas.getContext('2d');
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.75;
+    g.drawImage(copy, 1, 0);
+    g.drawImage(copy, -1, 0);
+    g.drawImage(copy, 0, 1);
+    g.drawImage(copy, 0, -1);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  function gainAlpha(canvas, gain) {
+    const g = canvas.getContext('2d');
+    const img = g.getImageData(0, 0, canvas.width, canvas.height);
+    const d = img.data;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] === 0) continue;
+      const boosted = d[i] * gain;
+      d[i] = boosted > 255 ? 255 : boosted;
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function blitGlow(src, scale) {
+    const sx = Math.max(0, cam.x * scale);
+    const sy = Math.max(0, cam.y * scale);
+    const dx = Math.max(0, -cam.x);
+    const dy = Math.max(0, -cam.y);
+    const sw = Math.min(src.width - sx, (view.w - dx) * scale);
+    const sh = Math.min(src.height - sy, (view.h - dy) * scale);
+    if (sw <= 0 || sh <= 0) return;
+    ctx.drawImage(src, sx, sy, sw, sh, dx, dy, sw / scale, sh / scale);
+  }
+
+  function paintDynamicBloom() {
     const bw = Math.max(2, view.w >> 1);
     const bh = Math.max(2, view.h >> 1);
-    if (!bloomCanvas || bloomCanvas.width !== bw) {
-      bloomCanvas = document.createElement('canvas');
-      bloomCanvas.width = bw;
-      bloomCanvas.height = bh;
+    if (!bloomHalf || bloomHalf.width !== bw || bloomHalf.height !== bh) {
+      bloomHalf = document.createElement('canvas');
+      bloomHalf.width = bw;
+      bloomHalf.height = bh;
     }
-    if ((fxFrame & 1) === 0) {
-      const b = bloomCanvas.getContext('2d');
+    const qw = Math.max(2, bw >> 1);
+    const qh = Math.max(2, bh >> 1);
+    if (!bloomQuarter || bloomQuarter.width !== qw || bloomQuarter.height !== qh) {
+      bloomQuarter = document.createElement('canvas');
+      bloomQuarter.width = qw;
+      bloomQuarter.height = qh;
+    }
+    const low = quality === 'low';
+    if (!low || (fxFrame & 1) === 0) {
+      const b = bloomHalf.getContext('2d');
       b.clearRect(0, 0, bw, bh);
-      b.fillStyle = '#fff3c4';
-      for (let i = 0; i < n; i++) {
-        const L = lights[i];
-        const x = (L.x - cam.x) * 0.5;
-        const y = (L.y - cam.y) * 0.5;
-        b.globalAlpha = 0.85;
+      b.globalCompositeOperation = 'lighter';
+      const cap = low ? 4 : 8;
+      let n = 0;
+      for (let i = 0; i < gems.length && n < cap; i++) {
+        const gem = gems[i];
+        if (!gem.alive || !onScreen(gem.x, gem.y, 12)) continue;
+        n += 1;
+        b.fillStyle = gem.value >= 8 ? '#9eecff' : gem.value >= 3 ? '#ffe14a' : '#e2b6ff';
+        b.globalAlpha = 0.95;
         b.beginPath();
-        b.arc(x, y, Math.max(2, L.r * 0.12), 0, Math.PI * 2);
+        b.arc((gem.x - cam.x) * 0.5, (gem.y - cam.y) * 0.5, 5, 0, Math.PI * 2);
+        b.fill();
+      }
+      for (let i = 0; i < flashes.length; i++) {
+        const f = flashes[i];
+        if (f.life <= 0 || !onScreen(f.x, f.y, 16)) continue;
+        b.fillStyle = f.color;
+        b.globalAlpha = Math.max(0.35, f.life / f.max);
+        b.beginPath();
+        b.arc((f.x - cam.x) * 0.5, (f.y - cam.y) * 0.5, 6.5, 0, Math.PI * 2);
         b.fill();
       }
       b.globalAlpha = 1;
+      b.globalCompositeOperation = 'source-over';
+      blurCanvas(bloomHalf, low ? 3 : 5);
+      gainAlpha(bloomHalf, low ? 1.6 : 2.2);
+      if (!low) {
+        const qg = bloomQuarter.getContext('2d');
+        qg.clearRect(0, 0, qw, qh);
+        qg.drawImage(bloomHalf, 0, 0, qw, qh);
+        blurCanvas(bloomQuarter, 4);
+      }
     }
+    ctx.globalAlpha = low ? 0.42 : 0.62;
+    ctx.drawImage(bloomHalf, 0, 0, view.w, view.h);
+    if (!low) {
+      ctx.globalAlpha = 0.36;
+      ctx.drawImage(bloomQuarter, 0, 0, view.w, view.h);
+    }
+  }
+
+  function paintBloom() {
+    if (!cityGlow) return;
+    const low = quality === 'low';
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.35;
-    try { ctx.filter = 'blur(3px)'; } catch (err) { ctx.filter = 'none'; }
-    ctx.drawImage(bloomCanvas, 0, 0, view.w, view.h);
-    ctx.filter = 'none';
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = low ? 0.5 : 0.7;
+    blitGlow(cityGlow, 0.5);
+    if (!low && cityGlowQ) {
+      ctx.globalAlpha = 0.42;
+      blitGlow(cityGlowQ, 0.25);
+    }
+    paintDynamicBloom();
+    ctx.imageSmoothingEnabled = false;
     ctx.restore();
   }
 
@@ -2438,7 +2824,7 @@
       level: 1,
       xp: 0,
       next: xpFor(1),
-      radius: 10,
+      radius: 6,
       facing: 1,
       moving: false,
       iframe: 0,
