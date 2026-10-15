@@ -824,6 +824,20 @@
             g.fillStyle = '#e6d27a';
             g.fillRect(px + 7, py + 2, 2, 8);
           }
+          if (type === T_ROAD && mx === TW - 1 && my > 0 && my < TW - 1 && (my & 1) === 0) {
+            g.fillStyle = '#f7f3ea';
+            g.fillRect(px + 11, py + 2, 3, 12);
+          }
+          if (type === T_ROAD && my === TW - 1 && mx > 0 && mx < TW - 1 && (mx & 1) === 0) {
+            g.fillStyle = '#f7f3ea';
+            g.fillRect(px + 2, py + 11, 12, 3);
+          }
+          if (horiz && !vert && my === 2 && (tx % 7) === 0) {
+            g.fillStyle = '#f4f1ea';
+            g.fillRect(px + 4, py + 3, 3, 3);
+            g.fillRect(px + 8, py + 6, 3, 3);
+            g.fillRect(px + 5, py + 9, 3, 3);
+          }
           if (horiz && mx === TW && (my & 1) === 0) {
             g.fillStyle = '#f4f1ea';
             g.fillRect(px, py + 1, 3, TILE - 2);
@@ -1098,6 +1112,24 @@
   }
 
   function makeBuildingSprite(fw, fh, pal, seed) {
+    if (window.GTACity) {
+      const neon = NEONS[seed % NEONS.length];
+      const roof = window.GTACity.paintRoof(fw, fh, pal, seed);
+      return {
+        canvas: roof,
+        roof: roof,
+        wallFront: window.GTACity.paintWall(fw, pal, seed, neon, true),
+        wallSide: window.GTACity.paintWall(fh, pal, seed + 9, neon, false),
+        eaves: 8,
+        neon: neon,
+        block: true,
+        lights: [
+          { x: fw / 2 + 8, y: 16 + fh * 0.42 },
+          { x: 8 + 28, y: 16 + fh * 0.7 },
+          { x: 8 + fw / 2, y: 16 + fh - 12 },
+        ],
+      };
+    }
     // Two storeys, each about 1.7x a person's height. Door matches a person.
     const wallH = 90 + (seed % 3) * 4;
     const roofD = 30 + ((seed >> 3) % 3) * 4;
@@ -1294,6 +1326,28 @@
     return presented;
   }
 
+  function vehicleSprite(model, color) {
+    const key = model + '|' + (color || '');
+    if (!carCache[key]) {
+      carCache[key] = window.GTACity
+        ? window.GTACity.paintCar(model, color)
+        : makeCarSprite(color, true);
+    }
+    return carCache[key];
+  }
+
+  function carLightsAt(cx, cy, ang, model) {
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    const lights = [
+      { x: cx + c * 30, y: cy + s * 30, r: 18, color: '#fff1b0' },
+      { x: cx - c * 28, y: cy - s * 28, r: 12, color: '#ff3355' },
+    ];
+    if (model === 'police') lights.push({ x: cx, y: cy - 4, r: 22, color: '#7aa2ff' });
+    if (model === 'taxi') lights.push({ x: cx, y: cy, r: 14, color: '#ffe14a' });
+    return lights;
+  }
+
   function makeFountainSprite() {
     const c = document.createElement('canvas');
     c.width = 54;
@@ -1353,15 +1407,22 @@
           }
           props.push({
             img: built.canvas,
-            w: built.canvas.worldW || built.canvas.width,
-            h: built.canvas.worldH || built.canvas.height,
-            x: left,
+            w: built.block ? fw + 96 : (built.canvas.worldW || built.canvas.width),
+            h: built.block ? fh + 96 : (built.canvas.worldH || built.canvas.height),
+            x: built.block ? x0 - 48 : left,
             sortY: sortY,
             shadowW: fw * 0.86,
             shadowH: 12,
             lights: lights,
             neon: built.neon,
             kind: 'build',
+            roof: built.roof || null,
+            wallFront: built.wallFront || null,
+            wallSide: built.wallSide || null,
+            footX: x0,
+            footY: y0,
+            fw: fw,
+            fh: fh,
           });
           addLamp(x0 - 14, sortY + 6);
           addLamp(x0 + fw + 2, sortY + 6);
@@ -1411,29 +1472,29 @@
             anchorX = spot.x;
             anchorY = spot.y;
           }
+          const models = (window.GTACity && window.GTACity.models) || ['sedan'];
+          const model = models[hash(tx, ty) % models.length];
           const color = CAR_COLORS[hash(tx, ty) % CAR_COLORS.length];
-          const key = color + (horiz ? 'h' : 'v');
-          if (!carCache[key]) carCache[key] = makeCarSprite(color, horiz);
-          const img = carCache[key];
-          const carW = img.worldW || img.width;
-          const carH = img.worldH || img.height;
+          const img = vehicleSprite(model, color);
+          let ang = horiz ? 0 : Math.PI / 2;
+          if (hash(ty, tx) & 1) ang += Math.PI;
+          const carW = img.worldW || 36;
+          const carH = img.worldH || 72;
           props.push({
             img: img,
-            w: carW,
-            h: carH,
-            x: anchorX - carW / 2,
-            sortY: anchorY + carH / 2,
-            shadowW: horiz ? 68 : 32,
-            shadowH: 10,
-            lights: horiz
-              ? [
-                { x: anchorX + 30, y: anchorY - 2, r: 16, color: '#ffe07a' },
-                { x: anchorX - 30, y: anchorY + 2, r: 12, color: '#ff5a6a' },
-              ]
-              : [
-                { x: anchorX - 2, y: anchorY + 30, r: 16, color: '#ffe07a' },
-                { x: anchorX + 4, y: anchorY - 30, r: 12, color: '#ff5a6a' },
-              ],
+            model: model,
+            ang: ang,
+            cx: anchorX,
+            cy: anchorY,
+            spriteW: carW,
+            spriteH: carH,
+            w: 84,
+            h: 84,
+            x: anchorX - 42,
+            sortY: anchorY + 18,
+            shadowW: 64,
+            shadowH: 16,
+            lights: carLightsAt(anchorX, anchorY, ang, model),
             kind: 'car',
           });
         }
@@ -2444,6 +2505,14 @@
   }
 
   function drawProp(pr) {
+    if (pr.kind === 'car' && pr.ang != null) {
+      drawVehicle(pr);
+      return;
+    }
+    if (pr.kind === 'build' && pr.roof) {
+      drawBlock(pr);
+      return;
+    }
     const lift = propLift(pr.sortY);
     const pw = pr.w || pr.img.width;
     const ph = pr.h || pr.img.height;
@@ -2628,21 +2697,27 @@
         else if (mx === 3 && my > TW + 2 && my < PERIOD - 3) lanes.push({ x: x, y: y, vx: 0, vy: -46, horiz: false });
       }
     }
-    const step = Math.max(1, (lanes.length / 4) | 0);
-    for (let i = 0; i < 4 && lanes.length; i++) {
+    const step = Math.max(1, (lanes.length / 8) | 0);
+    const models = (window.GTACity && window.GTACity.models) || ['sedan'];
+    for (let i = 0; i < 8 && lanes.length; i++) {
       const cell = lanes[(i * step) % lanes.length];
+      const model = models[i % models.length];
       const color = CAR_COLORS[(i * 3) % CAR_COLORS.length];
-      const key = 'go' + color + (cell.horiz ? 'h' : 'v');
-      if (!carCache[key]) carCache[key] = makeCarSprite(color, cell.horiz);
-      const img = carCache[key];
+      const img = vehicleSprite(model, color);
+      const ang = Math.atan2(cell.vy, cell.vx);
       traffic.push({
         x: cell.x,
         y: cell.y,
-        vx: cell.vx,
-        vy: cell.vy,
+        ang: ang,
+        vx: Math.cos(ang),
+        vy: Math.sin(ang),
+        speed: 46 + (i % 4) * 6,
+        turnCool: 0,
+        phase: i * 1.7,
+        model: model,
         img: img,
-        w: img.worldW || img.width,
-        h: img.worldH || img.height,
+        spriteW: img.worldW || 36,
+        spriteH: img.worldH || 72,
         radius: 12,
       });
     }
@@ -2664,7 +2739,7 @@
   function updateAmbience(dt) {
     if (!player) return;
     const quiet = quality === 'low' || reduceMotion;
-    const folkCap = quiet ? 0 : 8;
+    const folkCap = quiet ? 4 : 12;
     if (folk.length > folkCap) folk.length = folkCap;
     if (!quiet && folk.length < folkCap && (fxFrame % 18) === 0) {
       const spot = findSidewalk();
@@ -2696,24 +2771,7 @@
         }
       }
     }
-    for (let i = 0; i < traffic.length; i++) {
-      const car = traffic[i];
-      car.x += car.vx * dt;
-      car.y += car.vy * dt;
-      if (car.x < -48) car.x = WORLD + 24;
-      if (car.x > WORLD + 48) car.x = -24;
-      if (car.y < -48) car.y = WORLD + 24;
-      if (car.y > WORLD + 48) car.y = -24;
-      if (state === 'play') {
-        const dx = player.x - car.x;
-        const dy = player.y - car.y;
-        const reach = 16 + player.radius;
-        if (dx * dx + dy * dy < reach * reach) {
-          const len = Math.hypot(dx, dy) || 1;
-          moveBody(player, (dx / len) * 36 * dt, (dy / len) * 36 * dt);
-        }
-      }
-    }
+    for (let i = 0; i < traffic.length; i++) steerTraffic(traffic[i], dt);
     if (quiet) return;
     for (let i = 0; i < pigeons.length; i++) {
       const p = pigeons[i];
@@ -2804,25 +2862,207 @@
     ctx.fillRect(x + 3, y + 1, 2, 1);
   }
 
-  function drawTraffic(car) {
-    if (!onScreen(car.x, car.y, 80)) return;
-    const dw = car.w;
-    const dh = car.h;
-    const x = Math.round((car.x - dw / 2 - cam.x) * drawScale) / drawScale;
-    const y = Math.round((car.y - dh / 2 - cam.y) * drawScale) / drawScale;
+  function isOpenRoad(x, y) {
+    const tx = x / TILE | 0;
+    const ty = y / TILE | 0;
+    if (tx < 1 || ty < 1 || tx >= MAP - 1 || ty >= MAP - 1) return false;
+    const i = ty * MAP + tx;
+    return tiles[i] === T_ROAD && solid[i] === 0;
+  }
+
+  function steerTraffic(car, dt) {
+    const look = 30;
+    const fx = car.x + Math.cos(car.ang) * look;
+    const fy = car.y + Math.sin(car.ang) * look;
+    const tx = car.x / TILE | 0;
+    const ty = car.y / TILE | 0;
+    const crossing = (tx % PERIOD) < TW && (ty % PERIOD) < TW;
+    const axes = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+    let want = car.ang;
+    const blocked = !isOpenRoad(fx, fy);
+    if (blocked || (crossing && car.turnCool <= 0 && ((hash(tx + car.phase * 10, ty) % 4) === 0))) {
+      const options = [];
+      for (let k = 0; k < axes.length; k++) {
+        const a = axes[k];
+        if (isOpenRoad(car.x + Math.cos(a) * 40, car.y + Math.sin(a) * 40)) options.push(a);
+      }
+      if (!options.length) want = car.ang + Math.PI;
+      else {
+        let pick = options[0];
+        let best = 99;
+        for (let k = 0; k < options.length; k++) {
+          const d = Math.abs(Math.atan2(Math.sin(options[k] - car.ang), Math.cos(options[k] - car.ang)));
+          const score = blocked ? d : (d < 0.2 ? 2 : d);
+          if (score < best) {
+            best = score;
+            pick = options[k];
+          }
+        }
+        if (crossing && options.length > 1 && !blocked) {
+          pick = options[(hash(tx, ty) + (car.phase | 0)) % options.length];
+        }
+        want = pick;
+        car.turnCool = 0.85;
+      }
+    } else {
+      let best = car.ang;
+      let bestD = 1;
+      for (let k = 0; k < axes.length; k++) {
+        const d = Math.abs(Math.atan2(Math.sin(car.ang - axes[k]), Math.cos(car.ang - axes[k])));
+        if (d < bestD) {
+          bestD = d;
+          best = axes[k];
+        }
+      }
+      if (bestD < 0.7 && isOpenRoad(car.x + Math.cos(best) * look, car.y + Math.sin(best) * look)) want = best;
+    }
+    car.turnCool = Math.max(0, (car.turnCool || 0) - dt);
+    let diff = Math.atan2(Math.sin(want - car.ang), Math.cos(want - car.ang));
+    const maxTurn = 2.6 * dt;
+    if (diff > maxTurn) diff = maxTurn;
+    if (diff < -maxTurn) diff = -maxTurn;
+    car.ang += diff;
+    const nx = car.x + Math.cos(car.ang) * car.speed * dt;
+    const ny = car.y + Math.sin(car.ang) * car.speed * dt;
+    if (isOpenRoad(nx, ny)) {
+      car.x = nx;
+      car.y = ny;
+    } else {
+      car.ang += 1.4 * dt;
+    }
+    if (car.x < 40) car.x = WORLD - 50;
+    if (car.x > WORLD - 40) car.x = 50;
+    if (car.y < 40) car.y = WORLD - 50;
+    if (car.y > WORLD - 40) car.y = 50;
+    car.vx = Math.cos(car.ang) * car.speed;
+    car.vy = Math.sin(car.ang) * car.speed;
+    if (state === 'play' && player) {
+      const dx = player.x - car.x;
+      const dy = player.y - car.y;
+      const reach = 16 + player.radius;
+      if (dx * dx + dy * dy < reach * reach) {
+        const len = Math.hypot(dx, dy) || 1;
+        moveBody(player, (dx / len) * 36 * dt, (dy / len) * 36 * dt);
+      }
+    }
+  }
+
+  function drawVehicle(spec) {
+    const x = spec.cx != null ? spec.cx : spec.x;
+    const y = spec.cy != null ? spec.cy : spec.y;
+    if (!onScreen(x, y, 70)) return;
+    const dw = spec.spriteW || 36;
+    const dh = spec.spriteH || 72;
+    const sx = x - cam.x;
+    const sy = y - cam.y;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate((spec.ang || 0) + Math.PI / 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.beginPath();
+    ctx.ellipse(1, 5, dh * 0.42, dw * 0.36, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(car.img, x, y, dw, dh);
-    const pulse = 0.45 + Math.sin(globalTime * 14 + car.x) * 0.4;
+    ctx.drawImage(spec.img, -dw / 2, -dh / 2, dw, dh);
+    if (spec.model === 'police') {
+      const flash = ((globalTime * 9) | 0) % 2;
+      ctx.fillStyle = flash ? '#ff2a3a' : '#3d6bff';
+      ctx.globalAlpha = 0.95;
+      ctx.fillRect(-dw * 0.18, -dh * 0.06, dw * 0.14, dh * 0.045);
+      ctx.fillStyle = flash ? '#3d6bff' : '#ff2a3a';
+      ctx.fillRect(dw * 0.04, -dh * 0.06, dw * 0.14, dh * 0.045);
+    }
+    const pulse = 0.5 + Math.sin(globalTime * 12 + x) * 0.35;
     ctx.globalAlpha = pulse;
     ctx.fillStyle = '#fff6c8';
-    if (Math.abs(car.vx) >= Math.abs(car.vy)) {
-      const nose = car.vx > 0 ? x + dw - 7 : x + 2;
-      ctx.fillRect(nose, y + dh * 0.32, 5, 3);
-    } else {
-      const nose = car.vy > 0 ? y + dh - 7 : y + 2;
-      ctx.fillRect(x + dw * 0.32, nose, 3, 5);
-    }
+    ctx.fillRect(-dw * 0.32, -dh * 0.48, dw * 0.18, dh * 0.045);
+    ctx.fillRect(dw * 0.14, -dh * 0.48, dw * 0.18, dh * 0.045);
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = '#ff3355';
+    ctx.fillRect(-dw * 0.34, dh * 0.42, dw * 0.2, dh * 0.04);
+    ctx.fillRect(dw * 0.14, dh * 0.42, dw * 0.2, dh * 0.04);
+    ctx.restore();
     ctx.globalAlpha = 1;
+  }
+
+  function drawWallFace(x0, y0, x1, y1, ox, oy, img) {
+    const ax = x0 - cam.x;
+    const ay = y0 - cam.y;
+    const bx = x1 - cam.x;
+    const by = y1 - cam.y;
+    const w = img.width;
+    const h = img.height;
+    ctx.save();
+    ctx.transform((bx - ax) / w, (by - ay) / w, ox / h, oy / h, ax, ay);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  function drawBlock(pr) {
+    const cx = cam.x + view.w / 2;
+    const cy = cam.y + view.h / 2;
+    const bx = pr.footX + pr.fw / 2;
+    const by = pr.footY + pr.fh / 2;
+    let dx = bx - cx;
+    let dy = by - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    const lean = Math.max(22, Math.min(48, 16 + dist * 0.08));
+    const ox = dx * lean;
+    const oy = dy * lean;
+    const x0 = pr.footX;
+    const y0 = pr.footY;
+    const x1 = x0 + pr.fw;
+    const y1 = y0 + pr.fh;
+    const edges = [
+      { x0: x0, y0: y1, x1: x1, y1: y1, nx: 0, ny: 1, front: true },
+      { x0: x1, y0: y1, x1: x1, y1: y0, nx: 1, ny: 0, front: false },
+      { x0: x1, y0: y0, x1: x0, y1: y0, nx: 0, ny: -1, front: true },
+      { x0: x0, y0: y0, x1: x0, y1: y1, nx: -1, ny: 0, front: false },
+    ];
+    const faces = [];
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i];
+      const facing = e.nx * (cx - bx) + e.ny * (cy - by);
+      if (facing > 6) faces.push({ e: e, facing: facing });
+    }
+    faces.sort((a, b) => a.facing - b.facing);
+    for (let i = 0; i < faces.length; i++) {
+      const e = faces[i].e;
+      const img = (i === faces.length - 1) ? pr.wallFront : pr.wallSide;
+      drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, img);
+    }
+    const rw = pr.roof.worldW || pr.fw;
+    const rh = pr.roof.worldH || pr.fh;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pr.roof, x0 - cam.x + ox - 8, y0 - cam.y + oy - 8, rw, rh);
+    if (faces.length && !reduceMotion) {
+      const e = faces[faces.length - 1].e;
+      const mx = (e.x0 + e.x1) / 2 - cam.x + ox * 0.22;
+      const my = (e.y0 + e.y1) / 2 - cam.y + oy * 0.22;
+      const flick = Math.sin(globalTime * 18 + pr.footX) > 0.86 ? 0.25 : (0.65 + Math.sin(globalTime * 6 + pr.footY) * 0.3);
+      ctx.globalAlpha = flick;
+      ctx.fillStyle = pr.neon || '#ff4d8d';
+      ctx.fillRect(mx - 12, my - 3, 24, 5);
+      ctx.globalAlpha = 1;
+    }
+    if (!reduceMotion && ((pr.footX / 16) | 0) % 3 === 0) {
+      const wave = Math.sin(globalTime * 3 + pr.footX) * 0.4;
+      ctx.save();
+      ctx.translate(x0 - cam.x + ox + 18, y0 - cam.y + oy + 14);
+      ctx.rotate(wave);
+      ctx.fillStyle = ((pr.footX / 32) | 0) % 2 ? '#ff4d8d' : '#5ce1e6';
+      ctx.fillRect(0, 0, 14, 8);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(0, 0, 14, 2);
+      ctx.restore();
+    }
+  }
+
+  function drawTraffic(car) {
+    drawVehicle(car);
   }
 
   function drawWorld() {
@@ -2842,13 +3082,15 @@
     for (let i = 0; i < props.length; i++) {
       const pr = props[i];
       if (!propOnScreen(pr)) continue;
-      const pw = pr.w || pr.img.width;
-      const cx = Math.round(pr.x + pw / 2 - cam.x);
-      const cy = Math.round(pr.sortY - cam.y + 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (pr.kind !== 'car') {
+        const pw = pr.w || pr.img.width;
+        const cx = Math.round(pr.x + pw / 2 - cam.x);
+        const cy = Math.round(pr.sortY - cam.y + 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       queue.push(pr.sortY, i, 0);
     }
     for (let i = 0; i < gems.length; i++) {
@@ -3250,6 +3492,16 @@
           const L = pr.lights[k];
           g.fillStyle = L.color;
           g.fillRect(L.x * 0.5 - 1.5, L.y * 0.5 - 1.5, 3, 3);
+        }
+        continue;
+      }
+      if (pr.kind === 'build') {
+        for (let k = 0; k < pr.lights.length; k++) {
+          const L = pr.lights[k];
+          g.fillStyle = L.color;
+          g.beginPath();
+          g.arc(L.x * 0.5, L.y * 0.5, 3.5, 0, Math.PI * 2);
+          g.fill();
         }
         continue;
       }
@@ -3861,7 +4113,7 @@
   }
 
   function tickMotes(dt) {
-    const cap = quality === 'low' ? 8 : 24;
+    const cap = quality === 'low' ? 16 : 40;
     if (reduceMotion) {
       motes.length = 0;
       return;
@@ -3894,15 +4146,15 @@
     fxFrame++;
     if (!hidden) {
       updateAmbience(dt);
-      if (dt > 0.028) {
+      if (dt > 0.042) {
         slowStreak++;
         fastStreak = 0;
       } else {
         fastStreak++;
         slowStreak = Math.max(0, slowStreak - 1);
       }
-      if (slowStreak > 20) quality = 'low';
-      if (quality === 'low' && fastStreak > 150) quality = 'high';
+      if (slowStreak > 40) quality = 'low';
+      if (quality === 'low' && fastStreak > 90) quality = 'high';
       tickMotes(dt);
     }
     draw();
