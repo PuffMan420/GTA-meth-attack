@@ -2101,13 +2101,14 @@
 
   function pistolPoint() {
     const hero = window.GTAPlayer && window.GTAPlayer.ready && window.GTAPlayer.frame(player, globalTime);
-    const dw = (hero && hero.worldW) || 27;
-    const dh = (hero && hero.worldH) || 34;
+    const dw = (hero && hero.worldW) || 20;
+    const dh = (hero && hero.worldH) || 30;
     const foot = 2;
-    let lx = -dw / 2 + (8 / 76) * dw;
-    const ly = -dh + foot + (49 / 98) * dh;
-    if (player.flip) lx = -lx;
-    const out = player.flip ? 2 : -2;
+    let lx = -dw / 2;
+    const ly = -dh + foot + (30 / 60) * dh;
+    const faceRight = player.facing > 0;
+    if (faceRight) lx = -lx;
+    const out = faceRight ? 2 : -2;
     return { x: player.x + lx + out, y: player.y + ly };
   }
 
@@ -3299,7 +3300,8 @@
     const dx = Math.round((ent.x - cam.x) * drawScale) / drawScale;
     const dy = Math.round((ent.y - cam.y + breath) * drawScale) / drawScale;
     ctx.translate(dx, dy);
-    if (spr.cast ? ent.flip : ent.facing < 0) ctx.scale(-1, 1);
+    const gubbe = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
+    if (gubbe ? player.facing > 0 : (spr.cast ? ent.flip : ent.facing < 0)) ctx.scale(-1, 1);
     if ((ent.hit || 0) > 0 && !(ent.dying > 0)) {
       const k = Math.min(1, ent.hit / 0.16);
       ctx.translate(-2 * k, -1 * k);
@@ -3352,8 +3354,8 @@
     if (!wimg) return;
     const ww = wimg.worldW || 8;
     const wh = wimg.worldH || 8;
-    const hx = -dw / 2 + (18 / 76) * dw;
-    const hy = -dh + foot + (44 / 98) * dh;
+    const hx = -dw / 2 + (10 / 40) * dw;
+    const hy = -dh + foot + (28 / 60) * dh;
     const t = player.swing > 0 ? player.swing / (player.swingMax || 0.42) : 0;
     let ox = 0;
     let oy = Math.round(Math.sin(globalTime * 5));

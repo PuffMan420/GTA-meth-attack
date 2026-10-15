@@ -11,21 +11,15 @@
     });
   }
 
-  function crispSize(n) {
-    return Math.round(n * 0.7 / 2) * 2;
-  }
-
   function wrap(img) {
-    var dw = crispSize(img.width);
-    var dh = crispSize(img.height);
     var c = document.createElement('canvas');
-    c.width = dw;
-    c.height = dh;
-    c.worldW = dw / 2;
-    c.worldH = dh / 2;
+    c.width = img.width;
+    c.height = img.height;
+    c.worldW = img.width / 2;
+    c.worldH = img.height / 2;
     var g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
-    g.drawImage(img, 0, 0, dw, dh);
+    g.drawImage(img, 0, 0);
     return c;
   }
 
@@ -70,7 +64,7 @@
     var rate = 3;
     if (ent.moving && spd > 96) {
       set = 'run';
-      rate = 14;
+      rate = 12;
     } else if (ent.moving && spd > 8) {
       set = 'walk';
       rate = 8;
