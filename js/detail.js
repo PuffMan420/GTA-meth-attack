@@ -204,6 +204,13 @@
       }
     }
 
+    g.fillStyle = 'rgba(20, 12, 24, 0.35)';
+    g.fillRect(torsoX + 2, y0 + 32, 1, 16);
+    g.fillStyle = 'rgba(255,255,255,0.22)';
+    g.fillRect(torsoX + torsoW - 7, y0 + 36, 3, 3);
+    g.fillStyle = 'rgba(40, 28, 18, 0.35)';
+    g.fillRect(legL + 1, y0 + 58, 4, 3);
+
     if (big) {
       const crown = g.createLinearGradient(18, 0, 60, 16);
       crown.addColorStop(0, '#fff6c0');
