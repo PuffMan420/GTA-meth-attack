@@ -173,10 +173,20 @@ button, ul, p, h1, h2, dl { margin: 0; }
 #toggles {
   position: fixed;
   z-index: 40;
+  flex: none;
+  align-self: flex-start;
+  margin: 0;
+  margin-left: auto;
   top: max(8px, env(safe-area-inset-top));
   right: max(8px, env(safe-area-inset-right));
+  left: auto;
+  bottom: auto;
   display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
   gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
 }
 
 #mute, #gore {
@@ -449,7 +459,25 @@ li {
 @media (max-width: 420px) {
   #hp-row, #xp-track, #meta-row, #bossbar { margin-right: 0; }
   #timer { font-size: 16px; }
-  #toggles { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+  #toggles {
+    top: auto;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: auto;
+    right: max(8px, env(safe-area-inset-right));
+    align-self: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    margin: 0;
+    margin-left: auto;
+    width: max-content;
+    max-width: calc(100% - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  }
+  #mute, #gore {
+    min-width: 0;
+    width: auto;
+    max-width: 100%;
+    white-space: nowrap;
+  }
   #hud { padding-bottom: 0; }
 }
 
