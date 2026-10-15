@@ -82,6 +82,7 @@
   const bossFill = document.getElementById('boss-fill');
   const hint = document.getElementById('hint');
   const muteBtn = document.getElementById('mute');
+  const goreBtn = document.getElementById('gore');
   const joystick = document.getElementById('joystick');
   const knob = document.getElementById('knob');
   const touchHint = document.getElementById('touch-hint');
@@ -152,6 +153,9 @@
   let pigeons = [];
   let street = [];
   let skids = [];
+  let gibs = [];
+  let stains = [];
+  let goreOn = true;
   let wanted = 0;
   let wantedCool = 0;
   let manholes = [];
@@ -257,6 +261,17 @@
     muteBtn.textContent = sfx.muted ? 'Sound off' : 'Sound on';
     muteBtn.setAttribute('aria-pressed', sfx.muted ? 'true' : 'false');
   }
+
+  try {
+    goreOn = localStorage.getItem('gta-meth-gore') !== '0';
+  } catch (err) { /* private mode */ }
+
+  function syncGore() {
+    if (!goreBtn) return;
+    goreBtn.textContent = goreOn ? 'Gore on' : 'Gore off';
+    goreBtn.setAttribute('aria-pressed', goreOn ? 'false' : 'true');
+  }
+  syncGore();
 
   function hash(x, y) {
     let n = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
@@ -1796,11 +1811,260 @@
     }
   }
 
-  function comicBurst(x, y) {
-    burst(x, y - 6, '#fff6c8', 4);
-    burst(x, y - 10, '#ffe14a', 3);
-    burst(x, y, '#ffffff', 3);
-    arcBit(x, y, '#d8d4e0', 3);
+  const BLOOD = ['#9a1428', '#c41c34', '#6e0c18', '#e23b4a'];
+  const GUTS = {
+    zombie: { skin: '#b6e070', cloth: '#8a909e', pants: '#3a4a28', hair: '#243018' },
+    alfa: { skin: '#c6ee88', cloth: '#3a3a44', pants: '#ff4d8d', hair: '#ff4d8d' },
+    cop: { skin: '#f2c19a', cloth: '#3a62e0', pants: '#1a2758', hair: '#24386e' },
+    dealer: { skin: '#f2c19a', cloth: '#8a4ad4', pants: '#241430', hair: '#1a1020' },
+    boss: { skin: '#f2c19a', cloth: '#6a3ad0', pants: '#2a1848', hair: '#e6b325' },
+    civ: { skin: '#e0a888', cloth: '#ff8a3d', pants: '#2a3348', hair: '#2a160f' },
+    civ2: { skin: '#f0c8b0', cloth: '#2a3a62', pants: '#1c1a24', hair: '#6a4030' },
+    civ3: { skin: '#8a5a3c', cloth: '#1f8a4c', pants: '#3a342c', hair: '#1a100c' },
+    civ4: { skin: '#f6d2b4', cloth: '#ff4d8d', pants: '#2a1848', hair: '#1a1028' },
+    civ5: { skin: '#d8a07a', cloth: '#6a6458', pants: '#243048', hair: '#c8c4d0' },
+  };
+
+  function addStain(x, y, kind) {
+    if (!goreOn) return;
+    if (stains.length >= 48) stains.shift();
+    const pool = kind === 'pool';
+    const drip = kind === 'drip';
+    const life = pool ? 7 : drip ? 2.2 : 3.6;
+    stains.push({
+      x: x + (Math.random() * 4 - 2),
+      y: y + (Math.random() * 3 - 1),
+      w: pool ? 9 + ((Math.random() * 6) | 0) : drip ? 2 : 3 + ((Math.random() * 3) | 0),
+      h: pool ? 4 + ((Math.random() * 2) | 0) : 2,
+      life: life,
+      max: life,
+      rot: Math.random() * 3,
+      color: BLOOD[(Math.random() * BLOOD.length) | 0],
+    });
+  }
+
+  function bloodSpurt(x, y, sx, sy, n) {
+    if (!goreOn || particles.length > 168) return;
+    const dx = x - (sx == null ? x + 1 : sx);
+    const dy = y - (sy == null ? y : sy);
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = dx / len;
+    const ny = dy / len;
+    for (let i = 0; i < n && particles.length < 176; i++) {
+      const spread = (Math.random() - 0.5) * 1.4;
+      const sp = 36 + Math.random() * 100;
+      particles.push({
+        x: x,
+        y: y - 4,
+        vx: (nx + spread) * sp,
+        vy: (ny * 0.35 - 0.85) * sp,
+        grav: 340,
+        life: 0.32 + Math.random() * 0.28,
+        max: 0.6,
+        color: BLOOD[(Math.random() * BLOOD.length) | 0],
+        size: 1 + ((Math.random() * 2) | 0),
+      });
+    }
+    if (Math.random() < 0.65) addStain(x, y + 1, 'splat');
+  }
+
+  function pickDeath(ent, cause) {
+    if (!goreOn) return ent.type === 'boss' ? 'spin' : 'fall';
+    if (ent.type === 'boss') return (cause === 'boom' || Math.random() < 0.7) ? 'gib' : 'launch';
+    const r = Math.random();
+    if (cause === 'boom') {
+      if (r < 0.4) return 'launch';
+      if (r < 0.78) return 'gib';
+      return 'partial';
+    }
+    if (cause === 'cart') {
+      if (r < 0.34) return 'crumple';
+      if (r < 0.58) return 'fall';
+      if (r < 0.84) return 'partial';
+      return 'spin';
+    }
+    if (r < 0.18) return 'fall';
+    if (r < 0.36) return 'spin';
+    if (r < 0.52) return 'crumple';
+    if (r < 0.72) return 'partial';
+    if (r < 0.9) return 'gib';
+    return 'launch';
+  }
+
+  function spawnGibs(ent, style) {
+    if (!goreOn) return;
+    const pal = GUTS[ent.type] || GUTS.civ;
+    const big = ent.type === 'boss';
+    let parts;
+    if (style === 'partial') {
+      const bag = ['head', 'arm', 'leg'];
+      parts = [bag[(Math.random() * bag.length) | 0]];
+      if (Math.random() < 0.65) parts.push(bag[(Math.random() * bag.length) | 0]);
+    } else if (style === 'launch') {
+      parts = Math.random() < 0.55 ? ['arm'] : [];
+    } else {
+      parts = ['head', 'arm', 'arm', 'leg', 'leg', 'torso'];
+      if (big) parts.push('torso', 'arm', 'leg');
+    }
+    for (let i = 0; i < parts.length; i++) {
+      if (gibs.length >= 40) gibs.shift();
+      const ang = Math.random() * Math.PI * 2;
+      const sp = (big ? 80 : 46) + Math.random() * (big ? 110 : 80);
+      const hold = big ? 2.6 : 1.6;
+      gibs.push({
+        x: ent.x + (Math.random() * 6 - 3),
+        y: ent.y - 8,
+        vx: Math.cos(ang) * sp + (ent.kvx || 0) * 0.2,
+        vy: -36 - Math.random() * (big ? 100 : 64) + Math.sin(ang) * 24,
+        grav: 300,
+        ang: Math.random() * 6,
+        spin: (Math.random() - 0.5) * (big ? 16 : 12),
+        air: 0,
+        bounces: 0,
+        rest: false,
+        drip: 0.04,
+        life: hold,
+        max: hold,
+        kind: parts[i],
+        skin: pal.skin,
+        cloth: pal.cloth,
+        pants: pal.pants,
+        hair: pal.hair,
+        big: big,
+      });
+    }
+  }
+
+  function finishDeath(ent, cause, sx, sy) {
+    const style = pickDeath(ent, cause || 'hit');
+    ent.death = style;
+    const awayX = ent.x - (sx == null ? ent.x - 1 : sx);
+    const awayY = ent.y - (sy == null ? ent.y : sy);
+    const len = Math.hypot(awayX, awayY) || 1;
+    if (style === 'launch' || (style === 'gib' && cause === 'boom')) {
+      const kick = ent.type === 'boss' ? 200 : 120;
+      ent.kvx += (awayX / len) * kick;
+      ent.kvy += (awayY / len) * kick * 0.6 - 70;
+    }
+    if (style === 'gib') {
+      ent.gibbed = true;
+      ent.dying = ent.type === 'boss' ? 1.2 : 0.55;
+    } else if (style === 'launch') {
+      ent.dying = ent.type === 'boss' ? 1 : 0.7;
+    } else if (ent.type === 'boss') {
+      ent.dying = 0.9;
+    }
+    ent.dieMax = ent.dying;
+    if (!goreOn) return;
+    addStain(ent.x, ent.y + 2, 'pool');
+    if (ent.type === 'boss') {
+      addStain(ent.x - 8, ent.y + 3, 'pool');
+      addStain(ent.x + 8, ent.y + 1, 'pool');
+      bloodSpurt(ent.x, ent.y, sx, sy, 14);
+    } else {
+      bloodSpurt(ent.x, ent.y, sx, sy, style === 'gib' ? 7 : 4);
+    }
+    if (style === 'gib' || style === 'partial' || style === 'launch') spawnGibs(ent, style);
+  }
+
+  function updateGore(dt) {
+    for (let i = stains.length - 1; i >= 0; i--) {
+      stains[i].life -= dt;
+      if (stains[i].life <= 0) stains.splice(i, 1);
+    }
+    for (let i = gibs.length - 1; i >= 0; i--) {
+      const g = gibs[i];
+      if (!g.rest) {
+        g.air += dt;
+        g.vy += g.grav * dt;
+        g.x += g.vx * dt;
+        g.y += g.vy * dt;
+        g.ang += g.spin * dt;
+        g.drip -= dt;
+        if (g.drip <= 0) {
+          g.drip = 0.09;
+          addStain(g.x, g.y, 'drip');
+        }
+        if (g.air > 1.15 || (g.air > 0.16 && g.vy > 0)) {
+          g.vy *= -0.3;
+          g.vx *= 0.6;
+          g.spin *= 0.4;
+          g.bounces += 1;
+          addStain(g.x, g.y, 'splat');
+          if (g.bounces >= 2 || g.air > 1.15 || Math.abs(g.vy) < 26) {
+            g.rest = true;
+            g.vy = 0;
+            g.grav = 0;
+            g.life = g.max;
+          }
+        }
+      } else {
+        g.vx *= Math.exp(-3.2 * dt);
+        g.x += g.vx * dt;
+        g.spin *= Math.exp(-2 * dt);
+        g.ang += g.spin * dt;
+        g.life -= dt;
+        if (g.life <= 0) gibs.splice(i, 1);
+      }
+    }
+  }
+
+  function drawStains() {
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < stains.length; i++) {
+      const s = stains[i];
+      if (!onScreen(s.x, s.y, 12)) continue;
+      ctx.save();
+      ctx.translate(s.x - cam.x, s.y - cam.y);
+      ctx.rotate(s.rot);
+      ctx.globalAlpha = Math.max(0.08, s.life / s.max) * 0.9;
+      ctx.fillStyle = s.color;
+      ctx.fillRect(-s.w / 2, -s.h / 2, s.w, s.h);
+      ctx.fillRect(-s.w / 3, -1, 2, 2);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawGibs() {
+    for (let i = 0; i < gibs.length; i++) {
+      const g = gibs[i];
+      if (!onScreen(g.x, g.y, 20)) continue;
+      const s = g.big ? 1.65 : 1;
+      ctx.save();
+      ctx.translate(Math.round(g.x - cam.x), Math.round(g.y - cam.y));
+      ctx.rotate(g.ang);
+      ctx.globalAlpha = g.rest ? Math.max(0, g.life / g.max) : 1;
+      ctx.imageSmoothingEnabled = false;
+      if (g.kind === 'head') {
+        ctx.fillStyle = g.hair;
+        ctx.fillRect(-3 * s, -4 * s, 6 * s, 3 * s);
+        ctx.fillStyle = g.skin;
+        ctx.fillRect(-3 * s, -1 * s, 6 * s, 5 * s);
+        ctx.fillStyle = '#140c18';
+        ctx.fillRect(-2 * s, 0, s, s);
+        ctx.fillRect(s, 0, s, s);
+      } else if (g.kind === 'arm') {
+        ctx.fillStyle = g.cloth;
+        ctx.fillRect(-1 * s, -4 * s, 3 * s, 7 * s);
+        ctx.fillStyle = g.skin;
+        ctx.fillRect(-1 * s, 3 * s, 3 * s, 2 * s);
+      } else if (g.kind === 'leg') {
+        ctx.fillStyle = g.pants;
+        ctx.fillRect(-2 * s, -5 * s, 3 * s, 8 * s);
+        ctx.fillStyle = '#1a1420';
+        ctx.fillRect(-2 * s, 3 * s, 4 * s, 2 * s);
+      } else {
+        ctx.fillStyle = g.cloth;
+        ctx.fillRect(-4 * s, -3 * s, 8 * s, 6 * s);
+        ctx.fillStyle = '#6e0c18';
+        ctx.fillRect(-2 * s, -1 * s, 3 * s, 2 * s);
+        ctx.fillStyle = g.skin;
+        ctx.fillRect(1 * s, 1 * s, 2 * s, 2 * s);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function muzzle(x, y, ang, color) {
@@ -1876,15 +2140,18 @@
     return e;
   }
 
-  function killEnemy(e) {
+  function killEnemy(e, cause, sx, sy) {
     if (!e.alive) return;
     e.alive = false;
     e.dying = e.type === 'boss' ? 0.7 : 0.45;
     e.dieMax = e.dying;
     kills += 1;
-    const color = e.type === 'cop' ? '#9eb6ff' : e.type === 'dealer' || e.type === 'boss' ? '#d7b4ff' : '#c6f59a';
-    burst(e.x, e.y, color, e.type === 'boss' ? 16 : 8);
-    puff(e.x, e.y, e.type === 'boss' ? 8 : 4);
+    finishDeath(e, cause, sx, sy);
+    if (!goreOn) {
+      const color = e.type === 'cop' ? '#9eb6ff' : e.type === 'dealer' || e.type === 'boss' ? '#d7b4ff' : '#c6f59a';
+      burst(e.x, e.y, color, e.type === 'boss' ? 16 : 8);
+      puff(e.x, e.y, e.type === 'boss' ? 8 : 4);
+    }
     const n = e.type === 'boss' ? 8 : 1;
     const each = e.xp / n;
     for (let i = 0; i < n; i++) {
@@ -1897,7 +2164,7 @@
     }
   }
 
-  function hurtEnemy(e, dmg, sx, sy) {
+  function hurtEnemy(e, dmg, sx, sy, cause) {
     if (!e.alive || state === 'dead') return;
     e.hp -= dmg;
     e.flash = 0.08;
@@ -1906,11 +2173,12 @@
     const len = Math.hypot(dx, dy) || 1;
     e.kvx += (dx / len) * 90;
     e.kvy += (dy / len) * 90;
+    if (goreOn) bloodSpurt(e.x, e.y, sx, sy, e.type === 'boss' ? 5 : 3);
     if (globalTime - sfx.hitAt > 0.04) {
       sfx.hitAt = globalTime;
       sfx.hit();
     }
-    if (e.hp <= 0) killEnemy(e);
+    if (e.hp <= 0) killEnemy(e, cause || 'hit', sx, sy);
     else e.hit = 0.16;
   }
 
@@ -1920,16 +2188,18 @@
     f.dying = 0.85;
     f.dieMax = 0.85;
     f.panic = 0;
-    comicBurst(f.x, f.y);
+    finishDeath(f, f.hitCause || 'hit', f.hitX, f.hitY);
     addHeat();
   }
 
-  function hurtFolk(f, dmg, sx, sy) {
+  function hurtFolk(f, dmg, sx, sy, cause) {
     if (!f || !f.alive || state !== 'play') return;
     f.hp -= dmg;
     f.flash = 0.1;
     f.hit = 0.16;
-    f.comic = 0.4;
+    f.hitCause = cause || 'hit';
+    f.hitX = sx;
+    f.hitY = sy;
     const dx = f.x - sx;
     const dy = f.y - sy;
     const len = Math.hypot(dx, dy) || 1;
@@ -1938,7 +2208,7 @@
     f.panic = 1.5;
     f.vx = (dx / len) * 86;
     f.vy = (dy / len) * 86;
-    comicBurst(f.x, f.y - 4);
+    if (goreOn) bloodSpurt(f.x, f.y, sx, sy, 3);
     if (globalTime - sfx.hitAt > 0.04) {
       sfx.hitAt = globalTime;
       sfx.hit();
@@ -2005,7 +2275,7 @@
       puff(p.x, p.y, 4);
     } else {
       arcBit(p.x, p.y, '#ff8a3d', 3);
-      comicBurst(p.x, p.y);
+      puff(p.x, p.y, 3);
     }
   }
 
@@ -2083,12 +2353,12 @@
       const dx = e.x - x;
       const dy = e.y - y;
       const reach = radius + e.radius;
-      if (dx * dx + dy * dy <= reach * reach) hurtEnemy(e, dmg, x, y);
+      if (dx * dx + dy * dy <= reach * reach) hurtEnemy(e, dmg, x, y, 'boom');
     }
     for (let i = 0; i < folk.length; i++) {
       const f = folk[i];
       if (!f.alive) continue;
-      if (overlapCircle(f.x, f.y, f.radius, x, y, radius)) hurtFolk(f, dmg, x, y);
+      if (overlapCircle(f.x, f.y, f.radius, x, y, radius)) hurtFolk(f, dmg, x, y, 'boom');
     }
     for (let i = 0; i < street.length; i++) {
       const p = street[i];
@@ -2261,7 +2531,7 @@
           const reach = 14 + e.radius;
           if (dx * dx + dy * dy <= reach * reach) {
             e.cartT = globalTime;
-            hurtEnemy(e, cartDmg(), x, y);
+            hurtEnemy(e, cartDmg(), x, y, 'cart');
           }
         }
         for (let k = 0; k < folk.length; k++) {
@@ -2270,7 +2540,7 @@
           if (globalTime - (f.cartT || 0) < 0.42) continue;
           if (overlapCircle(f.x, f.y, f.radius, x, y, 14)) {
             f.cartT = globalTime;
-            hurtFolk(f, cartDmg(), x, y);
+            hurtFolk(f, cartDmg(), x, y, 'cart');
           }
         }
         for (let k = 0; k < street.length; k++) {
@@ -2367,7 +2637,7 @@
           break;
         }
         p.seen.add(e.id);
-        hurtEnemy(e, p.dmg, p.x, p.y);
+        hurtEnemy(e, p.dmg, p.x, p.y, 'shot');
         if (p.seen.size > p.pierce) {
           p.alive = false;
           break;
@@ -2386,7 +2656,7 @@
           break;
         }
         if (p.seen) p.seen.add(f.id);
-        hurtFolk(f, p.dmg, p.x, p.y);
+        hurtFolk(f, p.dmg, p.x, p.y, 'shot');
         if (p.seen && p.seen.size > p.pierce) {
           p.alive = false;
           break;
@@ -2457,6 +2727,9 @@
       if (e.dying > 0) {
         e.dying -= dt;
         if (e.dying < 0) e.dying = 0;
+        e.kvx *= Math.exp(-4 * dt);
+        e.kvy *= Math.exp(-4 * dt);
+        if (e.death === 'launch' || e.death === 'gib') moveBody(e, e.kvx * dt, e.kvy * dt);
         continue;
       }
       if (!e.alive) continue;
@@ -2889,11 +3162,31 @@
       ctx.translate(-2 * k, -1 * k);
       ctx.scale(1 + k * 0.12, Math.max(0.75, 1 - k * 0.16));
     }
-    if (ent.dying > 0) {
+    if (ent.gibbed && goreOn) {
       const t = 1 - ent.dying / (ent.dieMax || 0.5);
-      ctx.rotate(t * 1.35 * (ent.panic != null || ent.type === 'civ' || (ent.type && ent.type.indexOf('civ') === 0) ? 1.15 : 1));
-      ctx.scale(1 + t * 0.18, Math.max(0.2, 1 - t * 0.62));
-      ctx.globalAlpha = Math.max(0, 1 - t * 0.9);
+      ctx.rotate(t * 2.2);
+      ctx.scale(0.4, 0.28);
+      ctx.globalAlpha = Math.max(0, 0.4 - t * 0.4);
+    } else if (ent.dying > 0) {
+      const t = 1 - ent.dying / (ent.dieMax || 0.5);
+      const style = ent.death || 'fall';
+      if (style === 'spin') {
+        ctx.rotate(t * 5);
+        ctx.scale(1, Math.max(0.35, 1 - t * 0.45));
+      } else if (style === 'crumple') {
+        ctx.rotate(t * 0.35);
+        ctx.scale(1.1, Math.max(0.16, 1 - t * 0.8));
+      } else if (style === 'launch') {
+        ctx.rotate(t * 2.6);
+        ctx.translate(0, -12 * (1 - t));
+      } else if (style === 'partial') {
+        ctx.rotate(t * 1.2);
+        ctx.scale(1, Math.max(0.4, 1 - t * 0.4));
+      } else {
+        ctx.rotate(-t * 1.2);
+        ctx.scale(1.05, Math.max(0.42, 1 - t * 0.35));
+      }
+      ctx.globalAlpha = Math.max(0, 1 - t * 0.92);
     } else if (ent.born > 0) {
       const t = 1 - ent.born / (ent.bornMax || 0.3);
       ctx.scale(0.35 + 0.65 * t, 0.15 + 0.85 * t);
@@ -2906,14 +3199,6 @@
     const dh = img.worldH || img.height;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
-    if ((ent.comic || 0) > 0 || (ent.panic || 0) > 0.2) {
-      const s = ((globalTime * 14 + (ent.phase || 0)) | 0) % 3;
-      ctx.fillStyle = '#ffe14a';
-      ctx.fillRect(-7, -dh - 3 - s, 2, 2);
-      ctx.fillRect(5, -dh - 6, 2, 2);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(-1, -dh - 8 - (2 - s), 2, 2);
-    }
     if (ent === player && player.cast > 0) {
       const kind = player.castKind;
       const wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : spr.crystal;
@@ -3718,6 +4003,7 @@
     }
     drawPuddles();
     drawSkids();
+    drawStains();
 
     const queue = [];
     for (let i = 0; i < props.length; i++) {
@@ -3772,6 +4058,7 @@
       } else if (kind === 2) drawActor(enemies[idx]);
       else drawActor(player);
     }
+    drawGibs();
 
     if (weapons && weapons.carts && weapons.carts.pos) {
       for (let i = 0; i < weapons.carts.pos.length; i++) {
@@ -4584,6 +4871,8 @@
     wanted = 0;
     wantedCool = 0;
     skids = [];
+    gibs = [];
+    stains = [];
     for (let i = 0; i < street.length; i++) {
       const pr = street[i];
       pr.alive = true;
@@ -4809,6 +5098,7 @@
     fxFrame++;
     if (!hidden) {
       updateAmbience(dt);
+      updateGore(dt);
       if (dt > 0.042) {
         slowStreak++;
         fastStreak = 0;
@@ -4986,6 +5276,20 @@
     if (state === 'title') startGame();
     else if (state === 'dead') restart();
   });
+
+  if (goreBtn) {
+    goreBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    goreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      goreOn = !goreOn;
+      if (!goreOn) {
+        gibs = [];
+        stains = [];
+      }
+      syncGore();
+      try { localStorage.setItem('gta-meth-gore', goreOn ? '1' : '0'); } catch (err) { /* ignore */ }
+    });
+  }
 
   muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   muteBtn.addEventListener('click', (e) => {
