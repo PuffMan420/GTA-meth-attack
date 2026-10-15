@@ -3,6 +3,7 @@
   'use strict';
 
   const TILE = 16;
+  const ART = 2;
   const MAP = 90;
   const PERIOD = 18;
   const TW = 6;
@@ -804,49 +805,63 @@
     }
   }
 
-  function paintAsphalt(tx, ty) {
+  function paintAsphaltTile(g, tx, ty, x, y) {
+    const S = TILE * ART;
     const n = hash(tx, ty);
-    if (n % 17 === 0) return '#343432';
-    if (n % 11 === 0) return '#4c4c48';
-    return '#3e3e3c';
+    const base = n % 17 === 0 ? '#343230' : n % 11 === 0 ? '#4a4844' : '#3c3c38';
+    g.fillStyle = base;
+    g.fillRect(x, y, S, S);
+    g.fillStyle = '#524e48';
+    g.fillRect(x + (n % 18), y + 2, 3, 1);
+    g.fillRect(x + ((n >> 4) % 20), y + 8, 2, 1);
+    g.fillStyle = '#2a2824';
+    g.fillRect(x + ((n >> 3) % 16), y + S - 5, 4, 1);
+    g.fillRect(x + ((n >> 6) % 22), y + 14, 1, 3);
+    if (n % 8 === 1) {
+      g.fillStyle = '#141210';
+      g.fillRect(x + 6, y + 18, 7, 1);
+    }
   }
 
-  function paintSidewalk(g, tx, ty, px, py) {
+  function paintSidewalk(g, tx, ty, x, y) {
+    const S = TILE * ART;
     const slab = (((tx >> 1) + (ty >> 1)) & 1) === 0;
-    g.fillStyle = slab ? '#d4cdc2' : '#c8c0b4';
-    g.fillRect(px, py, TILE, TILE);
-    g.fillStyle = '#b7aea2';
-    if ((tx & 1) === 0) g.fillRect(px, py, 1, TILE);
-    if ((ty & 1) === 0) g.fillRect(px, py, TILE, 1);
+    g.fillStyle = slab ? '#d4cdc0' : '#c4baac';
+    g.fillRect(x, y, S, S);
+    g.fillStyle = '#efe8dc';
+    g.fillRect(x + 2, y + 2, S - 6, 3);
+    g.fillRect(x + 2, y + 2, 3, S - 6);
+    g.fillStyle = '#8e867a';
+    g.fillRect(x + S - 4, y + 2, 2, S - 4);
+    g.fillRect(x + 2, y + S - 4, S - 4, 2);
+    g.fillStyle = '#141210';
+    if ((tx & 1) === 0) g.fillRect(x, y, 1, S);
+    if ((ty & 1) === 0) g.fillRect(x, y, S, 1);
     const n = hash(tx, ty);
-    if (n % 6 === 0) {
-      g.fillStyle = '#e4d8c6';
-      g.fillRect(px + 3, py + 3, 4, 3);
-    }
-    if (n % 11 === 2) {
-      g.fillStyle = 'rgba(60, 48, 36, 0.35)';
-      g.fillRect(px + 2, py + 8, 7, 1);
+    if (n % 5 === 0) {
+      g.fillStyle = '#b7aa9a';
+      g.fillRect(x + 8, y + 10, 6, 2);
     }
     const i = ty * MAP + tx;
     const roadN = ty > 0 && (tiles[i - MAP] === T_ROAD || tiles[i - MAP] === T_CAR);
     const roadS = ty < MAP - 1 && (tiles[i + MAP] === T_ROAD || tiles[i + MAP] === T_CAR);
     const roadW = tx > 0 && (tiles[i - 1] === T_ROAD || tiles[i - 1] === T_CAR);
     const roadE = tx < MAP - 1 && (tiles[i + 1] === T_ROAD || tiles[i + 1] === T_CAR);
+    g.fillStyle = '#000';
+    if (roadN) g.fillRect(x, y, S, 2);
+    if (roadS) g.fillRect(x, y + S - 2, S, 2);
+    if (roadW) g.fillRect(x, y, 2, S);
+    if (roadE) g.fillRect(x + S - 2, y, 2, S);
     g.fillStyle = '#6a645c';
-    if (roadN) g.fillRect(px, py, TILE, 3);
-    if (roadS) g.fillRect(px, py + TILE - 3, TILE, 3);
-    if (roadW) g.fillRect(px, py, 3, TILE);
-    if (roadE) g.fillRect(px + TILE - 3, py, 3, TILE);
-    g.fillStyle = '#2a2824';
-    if (roadN) g.fillRect(px, py, TILE, 1);
-    if (roadS) g.fillRect(px, py + TILE - 1, TILE, 1);
-    if (roadW) g.fillRect(px, py, 1, TILE);
-    if (roadE) g.fillRect(px + TILE - 1, py, 1, TILE);
-    g.fillStyle = '#eeeae4';
-    if (roadN) g.fillRect(px, py + 2, TILE, 1);
-    if (roadS) g.fillRect(px, py + TILE - 3, TILE, 1);
-    if (roadW) g.fillRect(px + 2, py, 1, TILE);
-    if (roadE) g.fillRect(px + TILE - 3, py, 1, TILE);
+    if (roadN) g.fillRect(x, y + 2, S, 3);
+    if (roadS) g.fillRect(x, y + S - 5, S, 3);
+    if (roadW) g.fillRect(x + 2, y, 3, S);
+    if (roadE) g.fillRect(x + S - 5, y, 3, S);
+    g.fillStyle = '#f4f1ea';
+    if (roadN) g.fillRect(x, y + 4, S, 1);
+    if (roadS) g.fillRect(x, y + S - 6, S, 1);
+    if (roadW) g.fillRect(x + 4, y, 1, S);
+    if (roadE) g.fillRect(x + S - 6, y, 1, S);
   }
 
   function onCrosswalk(mx, my) {
@@ -883,15 +898,25 @@
     g.save();
     g.translate(x, y);
     if (rot) g.rotate(rot);
-    g.fillStyle = color;
+    g.fillStyle = '#141210';
     let pen = 0;
     const gw = 2;
     for (let i = 0; i < word.length; i++) {
       const ch = word[i];
-      if (ch === ' ') {
-        pen += 6;
-        continue;
+      if (ch === ' ') { pen += 8; continue; }
+      const rows = (ROAD_FONT[ch] || '00000 00000 00000 00000 00000').split(' ');
+      for (let r = 0; r < rows.length; r++) {
+        for (let c = 0; c < rows[r].length; c++) {
+          if (rows[r][c] === '1') g.fillRect(pen + c * gw + 1, r * gw + 1, gw, gw);
+        }
       }
+      pen += 6 * gw;
+    }
+    g.fillStyle = color;
+    pen = 0;
+    for (let i = 0; i < word.length; i++) {
+      const ch = word[i];
+      if (ch === ' ') { pen += 8; continue; }
       const rows = (ROAD_FONT[ch] || '00000 00000 00000 00000 00000').split(' ');
       for (let r = 0; r < rows.length; r++) {
         for (let c = 0; c < rows[r].length; c++) {
@@ -909,12 +934,12 @@
     for (let by = 0; by < blocks; by++) {
       for (let bx = 0; bx < blocks; bx++) {
         const word = words[hash(bx + 2, by + 5) % words.length];
-        const hx = (bx * PERIOD + 10) * TILE + 4;
-        const hy = (by * PERIOD + 2) * TILE + 2;
+        const hx = ((bx * PERIOD + 10) * TILE + 4) * ART;
+        const hy = ((by * PERIOD + 2) * TILE + 2) * ART;
         paintPixelWord(g, word, hx, hy, word === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', 0);
         const vertWord = words[hash(bx + 8, by + 1) % words.length];
-        const vx = (bx * PERIOD + 2) * TILE + 2;
-        const vy = (by * PERIOD + 12) * TILE + 4;
+        const vx = ((bx * PERIOD + 2) * TILE + 2) * ART;
+        const vy = ((by * PERIOD + 12) * TILE + 4) * ART;
         paintPixelWord(g, vertWord, vx, vy, vertWord === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', -Math.PI / 2);
       }
     }
@@ -922,95 +947,104 @@
 
   function paintLaneArrow(g, x, y, dir) {
     g.save();
-    g.translate(x + 8, y + 8);
+    g.translate(x + 16, y + 16);
     g.rotate(dir * Math.PI / 2);
+    g.fillStyle = '#141210';
+    g.fillRect(-11, -1, 16, 6);
+    g.fillRect(3, -5, 6, 14);
+    g.fillRect(7, -3, 6, 10);
+    g.fillRect(11, -1, 4, 6);
     g.fillStyle = '#f4f1ea';
-    g.fillRect(-6, -1, 8, 3);
-    g.fillRect(1, -3, 3, 7);
-    g.fillRect(3, -2, 3, 5);
-    g.fillRect(5, -1, 2, 3);
+    g.fillRect(-12, -2, 16, 6);
+    g.fillRect(2, -6, 6, 14);
+    g.fillRect(6, -4, 6, 10);
+    g.fillRect(10, -2, 4, 6);
     g.restore();
   }
 
+  function paintGrassTile(g, tx, ty, x, y, tree) {
+    const S = TILE * ART;
+    const n = hash(tx, ty);
+    g.fillStyle = ((tx + ty) & 1) === 0 ? '#3d5a30' : '#345028';
+    g.fillRect(x, y, S, S);
+    g.fillStyle = '#4e6b3c';
+    g.fillRect(x + (n % 20), y + 3, 4, 2);
+    g.fillRect(x + 6, y + ((n >> 3) % 18), 2, 3);
+    g.fillStyle = '#2a401c';
+    g.fillRect(x + ((n >> 2) % 22), y + S - 6, 5, 2);
+    if (!tree && n % 7 === 0) {
+      g.fillStyle = n % 2 ? '#efe6c8' : '#d8d09a';
+      g.fillRect(x + 8 + (n % 10), y + 8 + ((n >> 4) % 8), 2, 2);
+      g.fillStyle = '#7b7f3d';
+      g.fillRect(x + 8 + (n % 10), y + 10 + ((n >> 4) % 8), 2, 1);
+    }
+  }
+
   function paintMap() {
+    const S = TILE * ART;
     mapCanvas = document.createElement('canvas');
-    mapCanvas.width = WORLD;
-    mapCanvas.height = WORLD;
+    mapCanvas.width = WORLD * ART;
+    mapCanvas.height = WORLD * ART;
     const g = mapCanvas.getContext('2d');
+    g.imageSmoothingEnabled = false;
     signs = [];
     fountains = [];
     for (let ty = 0; ty < MAP; ty++) {
       for (let tx = 0; tx < MAP; tx++) {
         const type = tiles[ty * MAP + tx];
-        const px = tx * TILE;
-        const py = ty * TILE;
+        const x = tx * S;
+        const y = ty * S;
         const mx = tx % PERIOD;
         const my = ty % PERIOD;
         const vert = mx < TW;
         const horiz = my < TW;
         if (type === T_CAR && !vert && !horiz) {
-          g.fillStyle = '#4a4a46';
-          g.fillRect(px, py, TILE, TILE);
+          g.fillStyle = '#464440';
+          g.fillRect(x, y, S, S);
+          g.fillStyle = '#5a564e';
+          g.fillRect(x + 2, y + 2, 6, 2);
           if ((tx % 3) === 0) {
             g.fillStyle = '#f4f1ea';
-            g.fillRect(px, py, 1, TILE);
+            g.fillRect(x, y, 2, S);
           }
         } else if (type === T_ROAD || type === T_CAR) {
-          g.fillStyle = paintAsphalt(tx, ty);
-          g.fillRect(px, py, TILE, TILE);
-          const speck = hash(tx, ty);
-          if (speck % 5 === 0) {
-            g.fillStyle = '#2e2e2c';
-            g.fillRect(px + (speck % 11), py + (hash(ty + 2, tx) % 11), 2, 2);
-          }
-          if (speck % 8 === 1) {
-            g.fillStyle = '#52524e';
-            g.fillRect(px + 4, py + 11, 3, 1);
-          }
+          paintAsphaltTile(g, tx, ty, x, y);
         } else if (type === T_SIDE) {
-          paintSidewalk(g, tx, ty, px, py);
+          paintSidewalk(g, tx, ty, x, y);
         } else if (type === T_BUILD) {
+          g.fillStyle = '#2e2c28';
+          g.fillRect(x, y, S, S);
           g.fillStyle = '#3a3834';
-          g.fillRect(px, py, TILE, TILE);
+          g.fillRect(x, y, S, 2);
         } else if (type === T_GRASS || type === T_TREE) {
-          g.fillStyle = ((tx + ty) & 1) === 0 ? '#4e6b3c' : '#456336';
-          g.fillRect(px, py, TILE, TILE);
-          g.fillStyle = ((tx * 3 + ty) & 3) === 0 ? '#3d5a30' : '#5c7d46';
-          g.fillRect(px + (hash(tx, ty) % 10), py + (hash(ty, tx) % 10), 3, 2);
-          if (hash(tx, ty) % 7 === 0 && type === T_GRASS) {
-            g.fillStyle = hash(tx, ty) % 2 ? '#efe6c8' : '#d8d09a';
-            g.fillRect(px + 4 + (hash(tx, ty) % 6), py + 4 + (hash(ty, tx) % 6), 2, 2);
-          }
-          if (type === T_GRASS && hash(tx, ty) % 37 === 0) {
-            g.fillStyle = '#c4b49a';
-            g.fillRect(px + 2, py + 6, 12, 3);
-            g.fillStyle = '#6a4428';
-            g.fillRect(px + 3, py + 9, 2, 4);
-            g.fillRect(px + 11, py + 9, 2, 4);
-          }
+          paintGrassTile(g, tx, ty, x, y, type === T_TREE);
         } else if (type === T_LOT) {
-          g.fillStyle = '#4a4a46';
-          g.fillRect(px, py, TILE, TILE);
+          g.fillStyle = '#464440';
+          g.fillRect(x, y, S, S);
+          g.fillStyle = '#524e48';
+          g.fillRect(x + 4, y + 6, 5, 2);
           if ((tx % 3) === 0) {
             g.fillStyle = '#f4f1ea';
-            g.fillRect(px, py, 1, TILE);
-          }
-          if (hash(tx, ty) % 5 === 0) {
-            g.fillStyle = '#5e5b54';
-            g.fillRect(px + 3, py + 4, 2, 2);
+            g.fillRect(x, y, 2, S);
           }
         } else if (type === T_PLAZA) {
           const checker = ((tx >> 1) + (ty >> 1)) & 1;
-          g.fillStyle = checker ? '#d2c8b6' : '#c4baa8';
-          g.fillRect(px, py, TILE, TILE);
-          g.fillStyle = '#a89e8e';
-          g.fillRect(px, py, TILE, 1);
-          g.fillRect(px, py, 1, TILE);
+          g.fillStyle = checker ? '#d2c8b6' : '#b7aa9a';
+          g.fillRect(x, y, S, S);
+          g.fillStyle = '#efe8dc';
+          g.fillRect(x + 2, y + 2, 4, 2);
+          g.fillStyle = '#141210';
+          g.fillRect(x, y, S, 1);
+          g.fillRect(x, y, 1, S);
         } else if (type === T_FOUNT) {
           g.fillStyle = '#b7aea0';
-          g.fillRect(px, py, TILE, TILE);
+          g.fillRect(x, y, S, S);
           g.fillStyle = '#8a9aa4';
-          g.fillRect(px + 2, py + 2, 12, 12);
+          g.fillRect(x + 4, y + 4, S - 8, S - 8);
+          g.fillStyle = '#d5eef2';
+          g.fillRect(x + 8, y + 8, 6, 3);
+          g.fillStyle = '#141210';
+          g.fillRect(x + 4, y + 4, S - 8, 1);
         }
       }
     }
@@ -1025,25 +1059,25 @@
         const vert = mx < TW;
         const horiz = my < TW;
         if (vert && horiz) continue;
-        const px = tx * TILE;
-        const py = ty * TILE;
+        const x = tx * S;
+        const y = ty * S;
         const cross = onCrosswalk(mx, my);
         if (cross) {
           if (horiz && !vert) {
-            g.fillRect(px, py + 1, TILE, 4);
-            g.fillRect(px, py + 9, TILE, 4);
+            g.fillRect(x, y + 2, S, 8);
+            g.fillRect(x, y + 18, S, 8);
           } else if (vert && !horiz) {
-            g.fillRect(px + 1, py, 4, TILE);
-            g.fillRect(px + 9, py, 4, TILE);
+            g.fillRect(x + 2, y, 8, S);
+            g.fillRect(x + 18, y, 8, S);
           }
           continue;
         }
-        if (horiz && !vert && my === 0) g.fillRect(px, py + 1, TILE, 2);
-        if (horiz && !vert && my === TW - 1) g.fillRect(px, py + TILE - 3, TILE, 2);
-        if (vert && !horiz && mx === 0) g.fillRect(px + 1, py, 2, TILE);
-        if (vert && !horiz && mx === TW - 1) g.fillRect(px + TILE - 3, py, 2, TILE);
-        if (horiz && !vert && (mx === TW + 2 || mx === PERIOD - 3)) g.fillRect(px, py + 2, 2, TILE - 4);
-        if (vert && !horiz && (my === TW + 2 || my === PERIOD - 3)) g.fillRect(px + 2, py, TILE - 4, 2);
+        if (horiz && !vert && my === 0) g.fillRect(x, y + 2, S, 3);
+        if (horiz && !vert && my === TW - 1) g.fillRect(x, y + S - 5, S, 3);
+        if (vert && !horiz && mx === 0) g.fillRect(x + 2, y, 3, S);
+        if (vert && !horiz && mx === TW - 1) g.fillRect(x + S - 5, y, 3, S);
+        if (horiz && !vert && (mx === TW + 2 || mx === PERIOD - 3)) g.fillRect(x, y + 4, 3, S - 8);
+        if (vert && !horiz && (my === TW + 2 || my === PERIOD - 3)) g.fillRect(x + 4, y, S - 8, 3);
       }
     }
     g.fillStyle = '#e6c84a';
@@ -1056,10 +1090,10 @@
         const vert = mx < TW;
         const horiz = my < TW;
         if (vert === horiz || onCrosswalk(mx, my)) continue;
-        const px = tx * TILE;
-        const py = ty * TILE;
-        if (horiz && my === 2 && (tx % 3) !== 0) g.fillRect(px + 2, py + TILE - 2, 10, 3);
-        if (vert && mx === 2 && (ty % 3) !== 0) g.fillRect(px + TILE - 2, py + 2, 3, 10);
+        const x = tx * S;
+        const y = ty * S;
+        if (horiz && my === 2 && (tx % 3) !== 0) g.fillRect(x + 4, y + S - 5, 20, 4);
+        if (vert && mx === 2 && (ty % 3) !== 0) g.fillRect(x + S - 5, y + 4, 4, 20);
       }
     }
     paintRoadWords(g);
@@ -1071,8 +1105,8 @@
         const horiz = my < TW;
         if (vert === horiz || onCrosswalk(mx, my)) continue;
         if (tiles[ty * MAP + tx] !== T_ROAD) continue;
-        if (horiz && my === 4 && mx % 8 === 5) paintLaneArrow(g, tx * TILE, ty * TILE, 0);
-        if (vert && mx === 4 && my % 8 === 5) paintLaneArrow(g, tx * TILE, ty * TILE, 1);
+        if (horiz && my === 4 && mx % 8 === 5) paintLaneArrow(g, tx * S, ty * S, 0);
+        if (vert && mx === 4 && my % 8 === 5) paintLaneArrow(g, tx * S, ty * S, 1);
       }
     }
 
@@ -1082,35 +1116,37 @@
     for (let ty = 0; ty < MAP; ty++) {
       for (let tx = 0; tx < MAP; tx++) {
         const type = tiles[ty * MAP + tx];
-        const px = tx * TILE;
-        const py = ty * TILE;
+        const x = tx * S;
+        const y = ty * S;
         const n = hash(tx, ty);
         if (type === T_ROAD || type === T_CAR) {
           if (n % 17 === 3) {
-            g.fillStyle = 'rgba(40, 36, 30, 0.45)';
-            g.fillRect(px + 2, py + 11, 7, 1);
-            g.fillRect(px + 6, py + 8, 1, 5);
+            g.fillStyle = '#2a2824';
+            g.fillRect(x + 4, y + 22, 14, 2);
+            g.fillRect(x + 12, y + 16, 2, 10);
           }
           if (n % 29 === 4 && !onCrosswalk(tx % PERIOD, ty % PERIOD)) {
-            g.fillStyle = '#4a4842';
-            g.fillRect(px + 3, py + 3, 10, 10);
-            g.fillStyle = '#2e2c28';
-            g.fillRect(px + 5, py + 5, 6, 6);
+            g.fillStyle = '#141210';
+            g.fillRect(x + 6, y + 6, 20, 20);
+            g.fillStyle = '#3a3834';
+            g.fillRect(x + 8, y + 8, 16, 16);
             g.fillStyle = '#8a867e';
-            g.fillRect(px + 7, py + 6, 2, 1);
-            g.fillRect(px + 6, py + 8, 4, 1);
-            manholes.push({ x: px + 8, y: py + 8 });
+            g.fillRect(x + 12, y + 12, 6, 2);
+            g.fillRect(x + 10, y + 16, 8, 2);
+            manholes.push({ x: tx * TILE + 8, y: ty * TILE + 8 });
           }
-          if (n % 23 === 7) puddles.push({ x: px + 8, y: py + 10, phase: (n % 9) });
+          if (n % 23 === 7) puddles.push({ x: tx * TILE + 8, y: ty * TILE + 10, phase: (n % 9) });
         } else if (type === T_SIDE && n % 19 === 5) {
+          g.fillStyle = '#000';
+          g.fillRect(x + 8, y + 12, 12, 10);
           g.fillStyle = n % 2 ? '#8d3a32' : '#c4a15a';
-          g.fillRect(px + 4, py + 6, 5, 4);
-          g.fillStyle = '#1a140c';
-          g.fillRect(px + 5, py + 7, 3, 1);
+          g.fillRect(x + 10, y + 14, 8, 6);
+          g.fillStyle = '#f4f1ea';
+          g.fillRect(x + 12, y + 15, 4, 2);
         }
         const mx = tx % PERIOD;
         const my = ty % PERIOD;
-        if (mx === TW && my === 0) signals.push({ x: px + 4, y: py - 4 });
+        if (mx === TW && my === 0) signals.push({ x: tx * TILE + 4, y: ty * TILE - 4 });
       }
     }
   }
@@ -1361,9 +1397,9 @@
     g.fillRect(doorX + 1, doorY - 5, 4, 1);
     g.globalAlpha = 1;
     lights.push({ x: doorX + ((doorW / 2) | 0), y: doorY - 4 });
-    const hi = presentSprite(c);
-    dressBuilding(hi);
-    return { canvas: hi, lights: lights, eaves: eaves, neon: neon };
+    c.worldW = c.width;
+    c.worldH = c.height;
+    return { canvas: c, lights: lights, eaves: eaves, neon: neon };
   }
 
   function makeTreeSprite() {
@@ -1373,46 +1409,61 @@
     c.worldW = 24;
     c.worldH = 28;
     const g = c.getContext('2d');
-    function blob(x, y, w, h, fill) {
+    function clump(x, y, w, h, dk, mid, hi) {
       g.fillStyle = '#000';
-      g.fillRect(x - 2, y - 2, w + 4, h + 4);
-      g.fillStyle = fill;
+      g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = mid;
       g.fillRect(x, y, w, h);
+      g.fillStyle = hi;
+      g.fillRect(x, y, Math.max(2, w - 4), 3);
+      g.fillRect(x, y, 2, Math.max(2, h - 4));
+      g.fillStyle = dk;
+      g.fillRect(x + 2, y + h - 3, w - 2, 3);
+      g.fillRect(x + w - 3, y + 2, 3, h - 2);
     }
-    blob(6, 4, 36, 28, '#16381c');
-    blob(10, 8, 24, 18, '#2f6a32');
-    blob(14, 6, 12, 10, '#6aaa48');
+    clump(4, 2, 40, 30, '#163016', '#2a4a22', '#3d6a32');
+    clump(10, 6, 22, 16, '#1e3a1c', '#3d6a32', '#6aaa48');
+    clump(16, 4, 12, 8, '#2a4a22', '#7b7f3d', '#c6d27a');
+    clump(28, 14, 12, 12, '#163016', '#345028', '#4e6b3c');
     g.fillStyle = '#000';
-    g.fillRect(20, 30, 10, 24);
-    g.fillStyle = '#5a3820';
-    g.fillRect(22, 32, 6, 20);
+    g.fillRect(20, 28, 10, 26);
+    g.fillStyle = '#3a2414';
+    g.fillRect(22, 30, 6, 22);
     g.fillStyle = '#7a5434';
-    g.fillRect(22, 32, 2, 16);
+    g.fillRect(22, 30, 2, 16);
+    g.fillStyle = '#5a3820';
+    g.fillRect(24, 36, 2, 10);
     g.fillStyle = '#000';
     g.fillRect(16, 50, 16, 6);
     g.fillStyle = '#3a2414';
-    g.fillRect(18, 52, 12, 4);
+    g.fillRect(18, 51, 12, 4);
     return c;
   }
 
   function makeLampSprite() {
     const c = document.createElement('canvas');
-    c.width = 14;
-    c.height = 72;
+    c.width = 16;
+    c.height = 80;
+    c.worldW = 8;
+    c.worldH = 40;
     const g = c.getContext('2d');
-    g.fillStyle = '#1a1814';
-    g.fillRect(6, 14, 3, 54);
+    g.fillStyle = '#000';
+    g.fillRect(6, 16, 5, 60);
     g.fillStyle = '#3a3832';
-    g.fillRect(6, 14, 1, 54);
-    g.fillStyle = '#141210';
-    g.fillRect(1, 8, 12, 7);
+    g.fillRect(7, 18, 3, 56);
+    g.fillStyle = '#6a645c';
+    g.fillRect(7, 18, 1, 40);
+    g.fillStyle = '#000';
+    g.fillRect(1, 8, 14, 10);
     g.fillStyle = '#f0d48a';
-    g.fillRect(2, 9, 10, 5);
+    g.fillRect(3, 10, 10, 6);
     g.fillStyle = '#fff6d0';
-    g.fillRect(4, 10, 4, 2);
+    g.fillRect(4, 11, 4, 2);
+    g.fillStyle = '#000';
+    g.fillRect(3, 74, 10, 6);
     g.fillStyle = '#2a2824';
-    g.fillRect(3, 66, 8, 4);
-    return presentSprite(c);
+    g.fillRect(4, 75, 8, 4);
+    return c;
   }
 
   function makeCarSprite(color, horizontal) {
@@ -1472,9 +1523,9 @@
       g.fillRect(3, 12, 4, 4);
       g.fillRect(27, 52, 4, 4);
     }
-    const presented = presentSprite(c);
-    dressCar(presented, horizontal);
-    return presented;
+    c.worldW = c.width;
+    c.worldH = c.height;
+    return c;
   }
 
   function vehicleSprite(model, color) {
@@ -1501,25 +1552,29 @@
 
   function makeFountainSprite() {
     const c = document.createElement('canvas');
-    c.width = 54;
-    c.height = 48;
+    c.width = 64;
+    c.height = 56;
+    c.worldW = 32;
+    c.worldH = 28;
     const g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(2, 28, 60, 24);
     g.fillStyle = '#6a6458';
-    g.fillRect(2, 26, 50, 18);
+    g.fillRect(4, 30, 56, 20);
     g.fillStyle = '#b7aea0';
-    g.fillRect(6, 20, 42, 16);
-    g.fillStyle = '#8a8478';
-    g.fillRect(8, 22, 38, 4);
-    g.fillStyle = '#2a6e88';
-    g.fillRect(12, 16, 30, 16);
+    g.fillRect(8, 24, 48, 18);
+    g.fillStyle = '#efe8dc';
+    g.fillRect(10, 26, 16, 3);
+    g.fillStyle = '#000';
+    g.fillRect(14, 16, 36, 16);
+    g.fillStyle = '#1a4a5a';
+    g.fillRect(16, 18, 32, 12);
     g.fillStyle = '#3e92a8';
-    g.fillRect(16, 14, 22, 12);
+    g.fillRect(20, 16, 24, 8);
     g.fillStyle = '#d5eef2';
-    g.fillRect(24, 6, 6, 12);
-    g.fillRect(21, 5, 12, 3);
-    g.fillStyle = '#e8e2d6';
-    g.fillRect(18, 24, 6, 2);
-    return presentSprite(c);
+    g.fillRect(28, 4, 8, 16);
+    g.fillRect(22, 6, 20, 3);
+    return c;
   }
 
   const carCache = {};
@@ -3259,16 +3314,17 @@
   }
 
   function drawShadow(x, y, rw) {
-    const cx = Math.round(x - cam.x);
-    const cy = Math.round(y - cam.y);
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rw + 3, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.38)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + 1, rw, 2.5, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const cx = Math.round((x - cam.x) * ART) / ART;
+    const cy = Math.round((y - cam.y) * ART) / ART;
+    ctx.fillStyle = 'rgba(8, 8, 10, 0.42)';
+    const rx = Math.max(2, rw);
+    const ry = 2;
+    for (let iy = -ry; iy <= ry; iy += 0.5) {
+      const t = 1 - (iy * iy) / (ry * ry);
+      if (t <= 0) continue;
+      const hx = Math.sqrt(t) * rx;
+      ctx.fillRect(cx - hx, cy + iy, hx * 2, 0.5);
+    }
   }
 
   function propLift(sortY) {
@@ -3846,9 +3902,7 @@
     ctx.save();
     ctx.translate(Math.round(pr.x - cam.x), Math.round(pr.y - cam.y));
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(1, 1, dw * 0.4, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(-dw * 0.35, -1, dw * 0.7, 3);
     if (pr.dying > 0) {
       const t = 1 - pr.dying / 0.7;
       ctx.rotate((pr.ang || 0) + t * 1.4);
@@ -3868,11 +3922,13 @@
     for (let i = 0; i < puddles.length; i++) {
       const p = puddles[i];
       if (!onScreen(p.x, p.y, 12)) continue;
-      const wobble = still ? 0 : Math.sin(globalTime * 3 + p.phase) * 1.4;
-      ctx.strokeStyle = 'rgba(210, 216, 220, 0.38)';
-      ctx.beginPath();
-      ctx.ellipse(p.x - cam.x, p.y - cam.y, 5 + wobble, 2.2, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      const wobble = still ? 0 : (((globalTime * 3 + p.phase) | 0) % 2);
+      const x = Math.round(p.x - cam.x);
+      const y = Math.round(p.y - cam.y);
+      ctx.fillStyle = 'rgba(210, 216, 220, 0.38)';
+      ctx.fillRect(x - 5 - wobble, y - 1, 10 + wobble * 2, 1);
+      ctx.fillRect(x - 3, y, 6, 1);
+      ctx.fillRect(x - 5 - wobble, y + 1, 10 + wobble * 2, 1);
     }
   }
 
@@ -4117,12 +4173,10 @@
     const sx = x - cam.x;
     const sy = y - cam.y;
     ctx.save();
-    ctx.translate(sx + 3, sy + 4);
+    ctx.translate(sx + 2, sy + 3);
     ctx.rotate(ang);
     ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, dh * 0.34, dw * 0.28, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(-dh * 0.32, -dw * 0.22, dh * 0.64, dw * 0.44);
     ctx.restore();
     ctx.save();
     ctx.translate(sx, sy);
@@ -4233,11 +4287,11 @@
     const sy = cam.y < 0 ? 0 : Math.floor(cam.y);
     const ox = cam.x < 0 ? -cam.x : sx - cam.x;
     const oy = cam.y < 0 ? -cam.y : sy - cam.y;
-    const sw = Math.min(mapCanvas.width - sx, Math.ceil(view.w - Math.min(0, ox)) + 1);
-    const sh = Math.min(mapCanvas.height - sy, Math.ceil(view.h - Math.min(0, oy)) + 1);
+    const sw = Math.min(WORLD - sx, Math.ceil(view.w - Math.min(0, ox)) + 1);
+    const sh = Math.min(WORLD - sy, Math.ceil(view.h - Math.min(0, oy)) + 1);
     if (sw > 0 && sh > 0) {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(mapCanvas, sx, sy, sw, sh, ox, oy, sw, sh);
+      ctx.drawImage(mapCanvas, sx * ART, sy * ART, sw * ART, sh * ART, ox, oy, sw, sh);
     }
     drawPuddles();
     drawSkids();
@@ -4251,20 +4305,16 @@
         drawBuildShadow(pr);
       } else if (pr.kind === 'tree') {
         const pw = pr.w || pr.img.width;
-        const cx = Math.round(pr.x + pw / 2 - cam.x + 2);
+        const cx = Math.round(pr.x + pw / 2 - cam.x);
         const cy = Math.round(pr.sortY - cam.y);
         ctx.fillStyle = 'rgba(8, 8, 10, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0.15, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(cx - pr.shadowW / 2, cy - 2, pr.shadowW, 4);
       } else if (pr.kind !== 'car') {
         const pw = pr.w || pr.img.width;
         const cx = Math.round(pr.x + pw / 2 - cam.x);
         const cy = Math.round(pr.sortY - cam.y + 2);
         ctx.fillStyle = 'rgba(20, 16, 12, 0.28)';
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(cx - pr.shadowW / 2, cy - 2, pr.shadowW, 4);
       }
       queue.push(pr.sortY, i, 0);
     }

@@ -181,16 +181,14 @@
     const c = canvas(W, H, fw + eaves * 2, fh + eaves * 2);
     const g = c.getContext('2d');
     const base = pal.roof;
-    const grd = g.createLinearGradient(0, 0, W, H * 0.15);
-    grd.addColorStop(0, mix(base, 0.2));
-    grd.addColorStop(1, base);
-    g.fillStyle = grd;
+    g.fillStyle = base;
     g.fillRect(0, 0, W, H);
-    const shade = g.createLinearGradient(0, H * 0.55, 0, H);
-    shade.addColorStop(0, 'rgba(0,0,0,0)');
-    shade.addColorStop(1, 'rgba(20, 16, 12, 0.28)');
-    g.fillStyle = shade;
-    g.fillRect(0, 0, W, H);
+    g.fillStyle = mix(base, 0.22);
+    g.fillRect(0, 0, W, Math.max(4, H >> 3));
+    g.fillRect(0, 0, 4, H);
+    g.fillStyle = mix(base, -0.28);
+    g.fillRect(0, H - Math.max(6, H >> 3), W, Math.max(6, H >> 3));
+    g.fillRect(W - 6, 0, 6, H);
 
     g.fillStyle = 'rgba(255,255,255,0.04)';
     for (let y = 14; y < H - 10; y += 10) g.fillRect(10, y, W - 20, 1);
@@ -219,14 +217,12 @@
     g.fillRect(ax, ay, 52, 30);
     g.fillStyle = '#6e767c';
     g.fillRect(ax + 3, ay + 3, 46, 8);
+    g.fillStyle = '#000';
+    g.fillRect(ax + 16, ay + 12, 20, 16);
     g.fillStyle = '#d5dbe0';
-    g.beginPath();
-    g.arc(ax + 26, ay + 20, 8, 0, Math.PI * 2);
-    g.fill();
+    g.fillRect(ax + 18, ay + 14, 16, 12);
     g.fillStyle = '#2c3238';
-    g.beginPath();
-    g.arc(ax + 26, ay + 20, 3, 0, Math.PI * 2);
-    g.fill();
+    g.fillRect(ax + 23, ay + 18, 6, 4);
     g.fillStyle = '#7a8288';
     g.fillRect(ax + 52, ay + 10, (W * 0.28) | 0, 6);
 
@@ -236,10 +232,12 @@
       const ty = 22 + ((seed >> 2) % 16);
       g.fillStyle = '#5c574e';
       g.fillRect(tx + 14, ty + 10, 26, 30);
+      g.fillStyle = '#000';
+      g.fillRect(tx + 12, ty, 30, 16);
       g.fillStyle = '#8a8172';
-      g.beginPath();
-      g.arc(tx + 27, ty + 10, 14, Math.PI, 0);
-      g.fill();
+      g.fillRect(tx + 14, ty + 2, 26, 12);
+      g.fillStyle = '#efe8dc';
+      g.fillRect(tx + 16, ty + 3, 8, 3);
       g.fillStyle = '#3a342c';
       g.fillRect(tx + 24, ty + 34, 6, 12);
       g.fillStyle = '#6a6458';
@@ -281,10 +279,10 @@
     g.fillStyle = '#8e949a';
     g.fillRect(W - 34, 16, 4, 28);
     g.fillRect(W - 44, 16, 20, 4);
+    g.fillStyle = '#000';
+    g.fillRect(W * 0.58 - 8, H * 0.62 - 8, 18, 18);
     g.fillStyle = '#5c6166';
-    g.beginPath();
-    g.arc(W * 0.58, H * 0.62, 9, 0, Math.PI * 2);
-    g.fill();
+    g.fillRect(W * 0.58 - 6, H * 0.62 - 6, 14, 14);
     g.fillStyle = '#2a2e32';
     g.fillRect(W * 0.58 - 1, H * 0.62, 3, 14);
     g.fillStyle = '#141210';
@@ -310,12 +308,14 @@
     const c = canvas(W, H, len, wallH);
     const g = c.getContext('2d');
     const wall = front ? pal.wall : mix(pal.wall, -0.22);
-    const grd = g.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0, mix(wall, 0.16));
-    grd.addColorStop(0.55, wall);
-    grd.addColorStop(1, mix(wall, -0.28));
-    g.fillStyle = grd;
+    g.fillStyle = wall;
     g.fillRect(0, 0, W, H);
+    g.fillStyle = mix(wall, 0.2);
+    g.fillRect(0, 0, W, 8);
+    g.fillRect(0, 0, 3, H);
+    g.fillStyle = mix(wall, -0.28);
+    g.fillRect(0, H - 10, W, 10);
+    g.fillRect(W - 4, 0, 4, H);
 
     const brick = wallLuma(pal.wall) < 150;
     if (brick) {
