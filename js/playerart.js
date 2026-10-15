@@ -11,15 +11,21 @@
     });
   }
 
+  function crispSize(n) {
+    return Math.round(n * 0.7 / 2) * 2;
+  }
+
   function wrap(img) {
+    var dw = crispSize(img.width);
+    var dh = crispSize(img.height);
     var c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = img.height;
-    c.worldW = img.width / 2;
-    c.worldH = img.height / 2;
+    c.width = dw;
+    c.height = dh;
+    c.worldW = dw / 2;
+    c.worldH = dh / 2;
     var g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
-    g.drawImage(img, 0, 0);
+    g.drawImage(img, 0, 0, dw, dh);
     return c;
   }
 
