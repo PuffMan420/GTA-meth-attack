@@ -1300,6 +1300,10 @@
       return {
         canvas: img,
         hand: true,
+        roof: spec.roof || img,
+        wallFront: spec.wallFront || img,
+        wallSide: spec.wallSide || spec.wallFront || img,
+        lean: spec.lean || 0.4,
         lights: [],
         eaves: 0,
         neon: NEONS[seed % NEONS.length],
@@ -1629,49 +1633,44 @@
           const wallH = 42;
           const sortY = y0 - 10;
           if (built.hand) {
-            const img = built.canvas;
-            // Whole painting, south wall included, stays in the lot. The 2-tile sidewalk around it stays clear of the road.
-            let bw = fw;
-            let bh = fw * (img.height / img.width);
-            if (bh > fh) {
-              bh = fh;
-              bw = fh * (img.width / img.height);
-            }
-            const dx = x0 + (fw - bw) / 2;
-            const dy = y0 + (fh - bh) / 2;
-            const lotX0 = (x0 / TILE) | 0;
-            const lotY0 = (y0 / TILE) | 0;
-            const lotX1 = ((x0 + fw) / TILE) | 0;
-            const lotY1 = ((y0 + fh) / TILE) | 0;
-            for (let sy = lotY0; sy < lotY1; sy++) {
-              for (let sx = lotX0; sx < lotX1; sx++) {
-                if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 0;
+            const lotX = (bx * PERIOD + TW) * TILE;
+            const lotY = (by * PERIOD + TW) * TILE;
+            const lot = (PERIOD - TW) * TILE;
+            const tx0 = (lotX / TILE) | 0;
+            const ty0 = (lotY / TILE) | 0;
+            const tx1 = ((lotX + lot) / TILE) | 0;
+            const ty1 = ((lotY + lot) / TILE) | 0;
+            for (let sy = ty0; sy < ty1; sy++) {
+              for (let sx = tx0; sx < tx1; sx++) {
+                if (sx < 0 || sy < 0 || sx >= MAP || sy >= MAP) continue;
+                const id = sy * MAP + sx;
+                if (tiles[id] === T_ROAD || tiles[id] === T_CAR) continue;
+                solid[id] = 1;
               }
             }
-            const sx0 = Math.max(lotX0, Math.floor(dx / TILE));
-            const sy0 = Math.max(lotY0, Math.floor(dy / TILE));
-            const sx1 = Math.min(lotX1, Math.ceil((dx + bw) / TILE));
-            const sy1 = Math.min(lotY1, Math.ceil((dy + bh) / TILE));
-            for (let sy = sy0; sy < sy1; sy++) {
-              for (let sx = sx0; sx < sx1; sx++) solid[sy * MAP + sx] = 1;
-            }
             props.push({
-              img: img,
-              w: bw,
-              h: bh,
-              x: dx,
-              sortY: dy + bh,
+              img: built.roof,
+              roof: built.roof,
+              wallFront: built.wallFront,
+              wallSide: built.wallSide,
+              lean: built.lean,
+              w: lot,
+              h: lot,
+              x: lotX,
+              sortY: lotY + lot,
               shadowW: 0,
               shadowH: 0,
               lights: [],
               neon: built.neon,
               kind: 'build',
               hand: true,
-              footX: dx,
-              footY: dy,
-              fw: bw,
-              fh: bh,
+              footX: lotX,
+              footY: lotY,
+              fw: lot,
+              fh: lot,
             });
+            addLamp(lotX + 12, lotY + lot - 4);
+            addLamp(lotX + lot - 12, lotY + lot - 4);
           } else {
           for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
             for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
@@ -1709,9 +1708,9 @@
             fw: fw,
             fh: fh,
           });
-          }
           addLamp(x0 - 14, y0 + fh + 6);
           addLamp(x0 + fw + 2, y0 + fh + 6);
+          }
         } else if (kind === 0) {
           props.push({
             img: fountainSprite,
@@ -3415,10 +3414,8 @@
       drawVehicle(pr);
       return;
     }
-    if (pr.kind === 'build' && pr.hand) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(pr.img, pr.footX - cam.x, pr.footY - cam.y, pr.w, pr.h);
+    if (pr.kind === 'build' && pr.hand && pr.roof && pr.wallFront) {
+      drawHandBlock(pr);
       return;
     }
     if (pr.kind === 'tree' && pr.img && pr.img.hand) {
@@ -4325,7 +4322,8 @@
     const h = img.height;
     ctx.save();
     ctx.transform((bx - ax) / w, (by - ay) / w, ox / h, oy / h, ax, ay);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = !!img.hand;
+    if (img.hand) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0);
     ctx.restore();
   }
@@ -4359,6 +4357,61 @@
     const y0 = pr.footY - cam.y;
     ctx.fillStyle = 'rgba(8, 8, 10, 0.42)';
     ctx.fillRect(x0 + 12, y0 + 16, fw + 8, fh + 10);
+  }
+
+  function drawHandBlock(pr) {
+    const cx = cam.x + view.w / 2;
+    const cy = cam.y + view.h / 2;
+    const x0 = pr.footX;
+    const y0 = pr.footY;
+    const fw = pr.fw;
+    const fh = pr.fh;
+    const x1 = x0 + fw;
+    const y1 = y0 + fh;
+    const bx = x0 + fw / 2;
+    const by = y0 + fh / 2;
+    let dx = bx - cx;
+    let dy = by - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    const lean = Math.min(fw, fh) * (pr.lean || 0.36);
+    let ox = dx * lean;
+    let oy = dy * lean;
+    const maxShiftX = fw * 0.58;
+    const maxShiftY = fh * 0.58;
+    ox = Math.max(-maxShiftX, Math.min(maxShiftX, ox));
+    oy = Math.max(-maxShiftY, Math.min(maxShiftY, oy));
+    const roofW = Math.max(16, fw - Math.abs(ox));
+    const roofH = Math.max(16, fh - Math.abs(oy));
+    const rx = x0 + (ox > 0 ? ox : 0);
+    const ry = y0 + (oy > 0 ? oy : 0);
+    const edges = [
+      { x0: x0, y0: y1, x1: x1, y1: y1, nx: 0, ny: 1 },
+      { x0: x1, y0: y1, x1: x1, y1: y0, nx: 1, ny: 0 },
+      { x0: x1, y0: y0, x1: x0, y1: y0, nx: 0, ny: -1 },
+      { x0: x0, y0: y0, x1: x0, y1: y1, nx: -1, ny: 0 },
+    ];
+    const faces = [];
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i];
+      const facing = e.nx * (cx - bx) + e.ny * (cy - by);
+      if (facing > 6) faces.push({ e: e, facing: facing });
+    }
+    faces.sort((a, b) => a.facing - b.facing);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0 - cam.x, y0 - cam.y, fw, fh);
+    ctx.clip();
+    for (let i = 0; i < faces.length; i++) {
+      const e = faces[i].e;
+      const img = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
+      if (img) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, img);
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pr.roof, rx - cam.x, ry - cam.y, roofW, roofH);
+    ctx.restore();
   }
 
   function drawBlock(pr) {

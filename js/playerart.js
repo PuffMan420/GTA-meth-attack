@@ -1,6 +1,6 @@
 /* The player is the hand-painted gubbe. One sprite, with a bob for idle, walk, and run. */
 (function () {
-  var CAR_LEN = 72;
+  var CAR_LEN = 48;
 
   function load(src) {
     return new Promise(function (ok, bad) {
