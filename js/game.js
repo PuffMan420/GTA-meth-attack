@@ -1628,33 +1628,56 @@
           const left = x0 - built.eaves;
           const wallH = 42;
           const sortY = y0 - 10;
-          for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
-            for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
-              if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
-            }
-          }
           if (built.hand) {
             const img = built.canvas;
-            const bw = fw;
-            const bh = fw * (img.height / img.width);
+            // Whole painting, south wall included, stays in the lot. The 2-tile sidewalk around it stays clear of the road.
+            let bw = fw;
+            let bh = fw * (img.height / img.width);
+            if (bh > fh) {
+              bh = fh;
+              bw = fh * (img.width / img.height);
+            }
+            const dx = x0 + (fw - bw) / 2;
+            const dy = y0 + (fh - bh) / 2;
+            const lotX0 = (x0 / TILE) | 0;
+            const lotY0 = (y0 / TILE) | 0;
+            const lotX1 = ((x0 + fw) / TILE) | 0;
+            const lotY1 = ((y0 + fh) / TILE) | 0;
+            for (let sy = lotY0; sy < lotY1; sy++) {
+              for (let sx = lotX0; sx < lotX1; sx++) {
+                if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 0;
+              }
+            }
+            const sx0 = Math.max(lotX0, Math.floor(dx / TILE));
+            const sy0 = Math.max(lotY0, Math.floor(dy / TILE));
+            const sx1 = Math.min(lotX1, Math.ceil((dx + bw) / TILE));
+            const sy1 = Math.min(lotY1, Math.ceil((dy + bh) / TILE));
+            for (let sy = sy0; sy < sy1; sy++) {
+              for (let sx = sx0; sx < sx1; sx++) solid[sy * MAP + sx] = 1;
+            }
             props.push({
               img: img,
               w: bw,
               h: bh,
-              x: x0,
-              sortY: y0 + fh,
+              x: dx,
+              sortY: dy + bh,
               shadowW: 0,
               shadowH: 0,
               lights: [],
               neon: built.neon,
               kind: 'build',
               hand: true,
-              footX: x0,
-              footY: y0,
-              fw: fw,
-              fh: fh,
+              footX: dx,
+              footY: dy,
+              fw: bw,
+              fh: bh,
             });
           } else {
+          for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
+            for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
+              if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
+            }
+          }
           const lights = [];
           for (let i = 0; i < built.lights.length; i++) {
             const L = built.lights[i];
