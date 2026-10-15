@@ -189,16 +189,36 @@ button, ul, p, h1, h2, dl { margin: 0; }
 
 #mute[aria-pressed="true"] { background: #6a6478; color: var(--paper); }
 
+#touch-hint {
+  position: fixed;
+  z-index: 16;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: calc(100% - 32px);
+  color: rgba(246, 241, 228, 0.78);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-shadow: 0 1px 0 #000, 0 0 8px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
 #joystick {
   position: fixed;
   z-index: 20;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 0;
+  top: 0;
   width: 132px;
   height: 132px;
+  margin: 0;
   border-radius: 50%;
   background: rgba(16, 10, 24, 0.42);
   border: 3px solid rgba(255, 225, 74, 0.7);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
   touch-action: none;
 }
 
