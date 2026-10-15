@@ -2431,6 +2431,7 @@
       player.vy = 0;
     }
     moveBody(player, (player.vx + player.kvx) * dt, (player.vy + player.kvy) * dt);
+    if (window.GTAPeople) window.GTAPeople.step(player, dt);
   }
 
   function updateWeapons(dt) {
@@ -2708,6 +2709,7 @@
         e.kvx *= Math.exp(-4 * dt);
         e.kvy *= Math.exp(-4 * dt);
         if (e.death === 'launch' || e.death === 'gib') moveBody(e, e.kvx * dt, e.kvy * dt);
+        if (window.GTAPeople) window.GTAPeople.step(e, dt);
         continue;
       }
       if (!e.alive) continue;
@@ -2715,6 +2717,7 @@
         e.born -= dt;
         if (e.born < 0) e.born = 0;
         e.moving = false;
+        if (window.GTAPeople) window.GTAPeople.step(e, dt);
         continue;
       }
       const dx = player.x - e.x;
@@ -2815,6 +2818,7 @@
 
       e.moving = Math.hypot(e.mvx, e.mvy) > 8;
       setDir(e, e.mvx || nx, e.mvy || ny);
+      if (window.GTAPeople) window.GTAPeople.step(e, dt);
       const tx = player.x - e.x;
       const ty = player.y - e.y;
       const touch = player.radius + e.radius;
@@ -3175,11 +3179,18 @@
     }
     const dw = img.worldW || img.width;
     const dh = img.worldH || img.height;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
+    let wimg = null;
     if (ent === player && player.cast > 0) {
       const kind = player.castKind;
-      const wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : spr.crystal;
+      wimg = kind === 'bottle' ? spr.bottle : kind === 'bass' ? spr.speaker : spr.crystal;
+    }
+    if (window.GTAPeople) {
+      ctx.imageSmoothingEnabled = true;
+      window.GTAPeople.draw(ctx, ent, wimg);
+      ctx.imageSmoothingEnabled = false;
+    } else {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
       if (wimg) {
         const ww = wimg.worldW || 8;
         const wh = wimg.worldH || 8;
@@ -3406,6 +3417,7 @@
         f.dying -= dt;
         moveBody(f, f.kvx * dt, f.kvy * dt);
         if (f.dying <= 0) folk.splice(i, 1);
+        else if (window.GTAPeople) window.GTAPeople.step(f, dt);
         continue;
       }
       if (!f.alive) {
@@ -3418,6 +3430,7 @@
       if (idling) {
         f.moving = false;
         if (Math.hypot(f.kvx, f.kvy) > 4) moveBody(f, f.kvx * dt, f.kvy * dt);
+        if (window.GTAPeople) window.GTAPeople.step(f, dt);
         continue;
       }
       if (f.pauseT <= -1.15) f.pauseT = 2.2 + Math.random() * 3.2;
@@ -3445,6 +3458,7 @@
       }
       f.moving = true;
       setDir(f, f.vx + f.kvx, f.vy + f.kvy);
+      if (window.GTAPeople) window.GTAPeople.step(f, dt);
       if (Math.hypot(f.x - player.x, f.y - player.y) > Math.max(view.w, view.h) * 1.2) {
         const spot = findSidewalk();
         if (spot) {
