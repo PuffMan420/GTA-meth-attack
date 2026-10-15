@@ -137,6 +137,15 @@
   let choosing = false;
   let flashes = [];
   let fountains = [];
+  let props = [];
+  let motes = [];
+  let quality = 'high';
+  let slowStreak = 0;
+  let fastStreak = 0;
+  let lightCanvas = null;
+  let bloomCanvas = null;
+  let dofCanvas = null;
+  let fxFrame = 0;
   const spr = {};
 
   const BARKS = {
@@ -246,8 +255,8 @@
   }
 
   function might() { return 1 + player.mightLv * 0.1; }
-  function speedStat() { return 86 * (1 + player.speedLv * 0.1); }
-  function magnetR() { return 190 + player.magnetLv * 40; }
+  function speedStat() { return 110 * (1 + player.speedLv * 0.1); }
+  function magnetR() { return 250 + player.magnetLv * 50; }
   function armorStat() { return player.armorLv * 4; }
   function regenStat() { return player.regenLv * 0.45; }
   function xpMul() { return 1 + player.xpLv * 0.12; }
@@ -255,7 +264,7 @@
   function crystalCd() { return 0.74 * Math.pow(0.86, weapons.crystal.rateLv - 1); }
   function crystalDmg() { return (8 + (weapons.crystal.dmgLv - 1) * 3) * might(); }
   function bassCd() { return 2.35 * Math.pow(0.86, weapons.bass.rateLv - 1); }
-  function bassRadius() { return 58 + (weapons.bass.radLv - 1) * 14; }
+  function bassRadius() { return 74 + (weapons.bass.radLv - 1) * 16; }
   function bassDmg() { return (14 + (weapons.bass.dmgLv - 1) * 4) * might(); }
   function cartDmg() { return (7 + (weapons.carts.dmgLv - 1) * 2) * might(); }
   function bottleRadius() { return 24 + (weapons.bottle.radLv - 1) * 8; }
@@ -328,7 +337,7 @@
   function paintWalker(p, frame, look) {
     const s = [0, 1, 0, -1][frame & 3];
     const bob = frame & 1;
-    const q = (x, y, color, w, h) => p(x, y + 1 + bob, color, w, h);
+    const q = (x, y, color, w, h) => p(x * 2, (y + 1 + bob) * 2, color, (w || 1) * 2, (h || 1) * 2);
     const legL = 7 + s;
     const legR = 13 - s;
     const armL = 3 - s;
@@ -396,9 +405,18 @@
     q(legR, 21, '#0c0a10', 4, 2);
     q(legL + 1, 21, '#5a5468', 1, 1);
     q(legR + 1, 21, '#5a5468', 1, 1);
+    const top = (1 + bob) * 2;
+    p(18, top + 6, look.hairHi || look.skinHi, 3, 1);
+    p(20, top + 12, look.skinHi, 2, 1);
+    p(28, top + 12, look.skin2, 1, 3);
+    if (!look.shades) p(21, top + 16, '#fff', 1, 1);
+    p(22, top + 30, look.jacketHi, 5, 2);
+    p(24, top + 34, look.jacket2, 2, 2);
+    p(14, top + 36, look.jacket2, 8, 1);
   }
 
-  function paintBoss(p, frame) {
+  function paintBoss(draw, frame) {
+    const p = (x, y, color, w, h) => draw(x * 2, y * 2, color, (w || 1) * 2, (h || 1) * 2);
     const y = frame & 1;
     const s = frame ? 1 : -1;
     p(8, 1 + y, COL.gold, 3, 3);
@@ -438,6 +456,11 @@
     p(8 + s, 31 + y, COL.shoe, 6, 2);
     p(18 - s, 31 + y, '#0c0a10', 6, 2);
     p(9 + s, 31 + y, '#5a5468', 2, 1);
+    const top = y * 2;
+    draw(20, top + 6, '#fff6c8', 2, 1);
+    draw(30, top + 20, '#d2b0ff', 3, 8);
+    draw(26, top + 40, COL.gold, 6, 1);
+    draw(18, top + 28, '#fff', 2, 2);
   }
 
   function paintGem(p, a, b, c, glint) {
@@ -458,7 +481,7 @@
 
   function buildSprites() {
     const frames = [0, 1, 2, 3];
-    const walker = (look) => frames.map((f) => outlined(24, 26, (p) => paintWalker(p, f, look)));
+    const walker = (look) => frames.map((f) => outlined(48, 52, (p) => paintWalker(p, f, look)));
     spr.player = walker({
       hair: '#6b3e24', hair2: '#3a2214', hairHi: '#e2a878',
       skin: COL.skin, skin2: COL.skin2, skinHi: COL.skinHi,
@@ -505,7 +528,7 @@
       pants: '#241430', pants2: '#3a2060', pantsHi: '#7a48c0',
       shoe: COL.shoe,
     });
-    spr.boss = [0, 1].map((f) => outlined(32, 36, (p) => paintBoss(p, f)));
+    spr.boss = [0, 1].map((f) => outlined(68, 74, (p) => paintBoss(p, f)));
     spr.bossHot = spr.boss.map((s) => tinted(s, '#ff4d6d'));
     spr.white = {
       player: spr.player.map((s) => tinted(s, '#ffffff')),
@@ -584,6 +607,25 @@
       p(6, 6, '#ff4d8d', 1, 1);
       p(3, 8, '#7a28a8', 6, 1);
     });
+    const grow = (img) => crispScale(img, 2);
+    spr.crystal = grow(spr.crystal);
+    spr.gem = spr.gem.map(grow);
+    spr.gemMid = spr.gemMid.map(grow);
+    spr.gemBig = spr.gemBig.map(grow);
+    spr.cart = grow(spr.cart);
+    spr.speaker = grow(spr.speaker);
+    spr.bottle = grow(spr.bottle);
+    spr.bag = grow(spr.bag);
+  }
+
+  function crispScale(src, factor) {
+    const c = document.createElement('canvas');
+    c.width = src.width * factor;
+    c.height = src.height * factor;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0, c.width, c.height);
+    return c;
   }
 
   function blockKind(bx, by) {
@@ -717,7 +759,6 @@
             g.fillStyle = '#d6c36a';
             g.fillRect(px, py + 7, 7, 2);
           }
-          drawCar(g, px, py, (hash(tx, ty) & 1) === 0, CAR_COLORS[hash(tx, ty) % CAR_COLORS.length]);
         } else if (type === T_ROAD || type === T_CAR) {
           g.fillStyle = '#32303e';
           g.fillRect(px, py, TILE, TILE);
@@ -754,9 +795,6 @@
             g.fillStyle = '#6a6578';
             g.fillRect(px + 7, py + 7, 2, 2);
           }
-          if (type === T_CAR) {
-            drawCar(g, px, py, horiz && !vert, CAR_COLORS[hash(tx, ty) % CAR_COLORS.length]);
-          }
         } else if (type === T_SIDE) {
           g.fillStyle = '#8d7b6c';
           g.fillRect(px, py, TILE, TILE);
@@ -780,54 +818,10 @@
           if (tx > 0 && tiles[i - 1] === T_ROAD) g.fillRect(px, py, 2, TILE);
           if (tx < MAP - 1 && tiles[i + 1] === T_ROAD) g.fillRect(px + TILE - 2, py, 2, TILE);
         } else if (type === T_BUILD) {
-          const bx = (tx / PERIOD) | 0;
-          const by = (ty / PERIOD) | 0;
-          const pal = BUILDINGS[hash(bx, by) % BUILDINGS.length];
-          g.fillStyle = pal.roof;
+          g.fillStyle = '#16141e';
           g.fillRect(px, py, TILE, TILE);
-          g.fillStyle = '#000';
-          g.globalAlpha = 0.18;
-          for (let row = 2; row < TILE; row += 3) g.fillRect(px, py + row, TILE, 1);
-          g.globalAlpha = 1;
-          const i = ty * MAP + tx;
-          g.fillStyle = pal.wall;
-          if (ty > 0 && tiles[i - MAP] !== T_BUILD) g.fillRect(px, py, TILE, 3);
-          if (ty < MAP - 1 && tiles[i + MAP] !== T_BUILD) g.fillRect(px, py + TILE - 3, TILE, 3);
-          if (tx > 0 && tiles[i - 1] !== T_BUILD) g.fillRect(px, py, 3, TILE);
-          if (tx < MAP - 1 && tiles[i + 1] !== T_BUILD) g.fillRect(px + TILE - 3, py, 3, TILE);
-          if (hash(tx, ty) % 3 !== 0) {
-            const lit = hash(tx, ty) % 7 !== 0;
-            g.fillStyle = '#100c14';
-            g.fillRect(px + 4, py + 4, 8, 8);
-            g.fillStyle = lit ? pal.win : pal.off;
-            g.fillRect(px + 5, py + 5, 6, 6);
-            g.fillStyle = pal.roof;
-            g.fillRect(px + 7, py + 5, 2, 6);
-            g.fillRect(px + 5, py + 7, 6, 2);
-            if (lit) {
-              g.fillStyle = '#fff';
-              g.globalAlpha = 0.7;
-              g.fillRect(px + 5, py + 5, 2, 2);
-              g.globalAlpha = 1;
-            }
-          } else if (hash(tx, ty) % 5 === 0) {
-            g.fillStyle = '#b7c0c8';
-            g.fillRect(px + 9, py + 9, 5, 4);
-            g.fillStyle = '#5c656e';
-            g.fillRect(px + 9, py + 11, 5, 1);
-            g.fillStyle = '#e8eef2';
-            g.fillRect(px + 10, py + 9, 1, 1);
-          }
-          if (ty > 0 && tiles[i - MAP] === T_SIDE && hash(tx, ty) % 4 === 0) {
-            signs.push({
-              x: px + 1,
-              y: py,
-              w: 14,
-              h: 4,
-              color: NEONS[hash(tx, ty) % NEONS.length],
-              phase: hash(tx, ty) % 7,
-            });
-          }
+          g.fillStyle = '#221e2c';
+          g.fillRect(px + (hash(tx, ty) % 10), py + (hash(ty, tx) % 10), 3, 2);
         } else if (type === T_GRASS || type === T_TREE) {
           g.fillStyle = ((tx + ty) & 1) === 0 ? '#1c6a36' : '#248044';
           g.fillRect(px, py, TILE, TILE);
@@ -836,22 +830,6 @@
           if (hash(tx, ty) % 5 === 0 && type === T_GRASS) {
             g.fillStyle = hash(tx, ty) % 2 ? '#ff4d8d' : '#ffe14a';
             g.fillRect(px + 3 + (hash(tx, ty) % 8), py + 3 + (hash(ty, tx) % 8), 2, 2);
-          }
-          if (type === T_TREE) {
-            g.fillStyle = 'rgba(0,0,0,0.28)';
-            g.fillRect(px + 4, py + 12, 9, 3);
-            g.fillStyle = '#4a2c18';
-            g.fillRect(px + 7, py + 9, 3, 6);
-            g.fillStyle = '#6b4030';
-            g.fillRect(px + 7, py + 9, 1, 5);
-            g.fillStyle = COL.leafDk;
-            g.fillRect(px + 2, py + 4, 12, 7);
-            g.fillStyle = '#166b34';
-            g.fillRect(px + 4, py + 2, 8, 7);
-            g.fillStyle = COL.leaf;
-            g.fillRect(px + 5, py + 3, 3, 2);
-            g.fillStyle = '#0b3a20';
-            g.fillRect(px + 9, py + 6, 2, 2);
           }
         } else if (type === T_LOT) {
           g.fillStyle = '#3a3848';
@@ -871,19 +849,10 @@
           g.fillStyle = checker ? '#948eaa' : '#45405a';
           g.fillRect(px + 6, py + 6, 4, 4);
         } else if (type === T_FOUNT) {
-          g.fillStyle = '#7a748c';
+          g.fillStyle = '#6a6480';
           g.fillRect(px, py, TILE, TILE);
-          g.fillStyle = '#3a3848';
-          g.fillRect(px + 1, py + 1, 14, 14);
-          g.fillStyle = '#1a6ea8';
-          g.fillRect(px + 3, py + 3, 10, 10);
-          g.fillStyle = '#3ec2e0';
-          g.fillRect(px + 5, py + 5, 6, 6);
-          g.fillStyle = '#d8fbff';
-          g.fillRect(px + 6, py + 6, 2, 2);
-          const ix = (tx % PERIOD) - TW;
-          const iy = (ty % PERIOD) - TW;
-          if (ix === 5 && iy === 5) fountains.push({ x: px + 8, y: py + 8 });
+          g.fillStyle = '#524c66';
+          g.fillRect(px + 2, py + 2, 12, 12);
         }
       }
     }
@@ -901,6 +870,331 @@
       }
     }
     paintMap();
+    buildProps();
+  }
+
+  function mixHex(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255;
+    let g = (n >> 8) & 255;
+    let b = n & 255;
+    if (amt >= 0) {
+      r += (255 - r) * amt;
+      g += (255 - g) * amt;
+      b += (255 - b) * amt;
+    } else {
+      const k = 1 + amt;
+      r *= k;
+      g *= k;
+      b *= k;
+    }
+    const h = (v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0');
+    return '#' + h(r) + h(g) + h(b);
+  }
+
+  function makeBuildingSprite(fw, fh, pal, seed) {
+    const wallH = 58 + (seed % 3) * 8;
+    const roofD = 46 + ((seed >> 3) % 3) * 6;
+    const eaves = 8;
+    const w = fw + eaves * 2;
+    const h = roofD + wallH + 6;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    const roof = pal.roof;
+    const roofHi = mixHex(pal.roof, 0.22);
+    const roofDk = mixHex(pal.roof, -0.32);
+    const wall = pal.wall;
+    const wallHi = mixHex(pal.wall, 0.2);
+    const wallDk = mixHex(pal.wall, -0.28);
+    g.fillStyle = roofDk;
+    g.fillRect(4, 6, w - 8, roofD);
+    g.fillStyle = roof;
+    g.fillRect(8, 2, w - 18, roofD - 2);
+    g.fillStyle = roofHi;
+    g.fillRect(12, 4, (w * 0.45) | 0, 8);
+    g.fillStyle = roofDk;
+    for (let row = 14; row < roofD; row += 5) g.fillRect(8, row, w - 20, 1);
+    g.fillStyle = mixHex(pal.roof, -0.45);
+    g.fillRect(w - 16, 8, 10, roofD - 4);
+    const wallTop = h - wallH - 2;
+    g.fillStyle = mixHex(pal.roof, -0.5);
+    g.fillRect(eaves - 2, wallTop - 5, fw + 4, 5);
+    g.fillStyle = wallDk;
+    g.fillRect(eaves, wallTop, fw, wallH);
+    g.fillStyle = wall;
+    g.fillRect(eaves + 4, wallTop + 2, fw - 10, wallH - 4);
+    g.fillStyle = wallHi;
+    g.fillRect(eaves + 4, wallTop + 2, 5, wallH - 8);
+    g.fillStyle = mixHex(pal.wall, -0.4);
+    g.fillRect(eaves + fw - 14, wallTop + 2, 8, wallH - 4);
+    const lights = [];
+    const neon = NEONS[seed % NEONS.length];
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 4; col++) {
+        const wx = eaves + 14 + col * 28;
+        const wy = wallTop + 8 + row * 22;
+        if (wx + 16 > eaves + fw - 16) continue;
+        const lit = ((seed + row * 5 + col * 3) % 5) !== 0;
+        g.fillStyle = '#100c14';
+        g.fillRect(wx, wy, 16, 12);
+        g.fillStyle = lit ? pal.win : pal.off;
+        g.fillRect(wx + 1, wy + 1, 14, 10);
+        g.fillStyle = '#140c18';
+        g.fillRect(wx + 7, wy + 1, 1, 10);
+        g.fillRect(wx + 1, wy + 5, 14, 1);
+        if (lit) {
+          g.globalAlpha = 0.7;
+          g.fillStyle = '#fff';
+          g.fillRect(wx + 2, wy + 2, 3, 2);
+          g.globalAlpha = 1;
+          if (lights.length < 2) lights.push({ x: wx + 8, y: wy + 6 });
+        }
+      }
+    }
+    const doorX = eaves + ((fw / 2) | 0) - 9;
+    const doorY = wallTop + wallH - 28;
+    g.fillStyle = '#140e0c';
+    g.fillRect(doorX, doorY, 18, 26);
+    g.fillStyle = '#4a3020';
+    g.fillRect(doorX + 2, doorY + 2, 14, 22);
+    g.fillStyle = pal.win;
+    g.fillRect(doorX + 4, doorY + 4, 10, 6);
+    g.fillStyle = COL.gold;
+    g.fillRect(doorX + 12, doorY + 14, 2, 2);
+    g.fillStyle = '#100c14';
+    g.fillRect(doorX - 2, doorY - 10, 22, 8);
+    g.fillStyle = neon;
+    g.fillRect(doorX, doorY - 8, 18, 5);
+    g.fillStyle = '#fff';
+    g.globalAlpha = 0.45;
+    g.fillRect(doorX + 2, doorY - 7, 4, 1);
+    g.globalAlpha = 1;
+    lights.push({ x: doorX + 9, y: doorY - 6 });
+    return { canvas: c, lights: lights, eaves: eaves };
+  }
+
+  function makeTreeSprite() {
+    const c = document.createElement('canvas');
+    c.width = 40;
+    c.height = 58;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0b3a20';
+    g.fillRect(2, 8, 36, 26);
+    g.fillStyle = '#145c30';
+    g.fillRect(6, 2, 28, 26);
+    g.fillStyle = '#1f7a40';
+    g.fillRect(10, 4, 16, 16);
+    g.fillStyle = COL.leaf;
+    g.fillRect(12, 6, 6, 4);
+    g.fillStyle = '#0e4a28';
+    g.fillRect(22, 14, 8, 8);
+    g.fillStyle = '#3a2416';
+    g.fillRect(17, 32, 6, 24);
+    g.fillStyle = '#6b4030';
+    g.fillRect(17, 32, 2, 20);
+    return c;
+  }
+
+  function makeLampSprite() {
+    const c = document.createElement('canvas');
+    c.width = 16;
+    c.height = 52;
+    const g = c.getContext('2d');
+    g.fillStyle = '#2a2834';
+    g.fillRect(6, 10, 4, 40);
+    g.fillStyle = '#4a4658';
+    g.fillRect(6, 10, 1, 40);
+    g.fillStyle = '#1a1820';
+    g.fillRect(2, 6, 12, 6);
+    g.fillStyle = '#ffe9a0';
+    g.fillRect(3, 7, 10, 4);
+    g.fillStyle = '#fff';
+    g.fillRect(5, 8, 3, 1);
+    return c;
+  }
+
+  function makeCarSprite(color, horizontal) {
+    const c = document.createElement('canvas');
+    c.width = horizontal ? 30 : 22;
+    c.height = horizontal ? 26 : 34;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0c0a10';
+    if (horizontal) {
+      g.fillRect(2, 8, 26, 14);
+      g.fillStyle = color;
+      g.fillRect(3, 9, 24, 12);
+      g.fillStyle = mixHex(color, 0.28);
+      g.fillRect(3, 9, 24, 3);
+      g.fillStyle = '#102028';
+      g.fillRect(6, 4, 12, 8);
+      g.fillStyle = '#9fd4ea';
+      g.fillRect(7, 5, 10, 5);
+      g.fillStyle = '#fff';
+      g.fillRect(8, 6, 3, 1);
+      g.fillStyle = '#ffe14a';
+      g.fillRect(24, 11, 3, 2);
+      g.fillStyle = '#ff3b4e';
+      g.fillRect(3, 17, 3, 2);
+      g.fillStyle = '#141018';
+      g.fillRect(4, 18, 5, 5);
+      g.fillRect(20, 18, 5, 5);
+    } else {
+      g.fillRect(3, 4, 16, 26);
+      g.fillStyle = color;
+      g.fillRect(4, 5, 14, 24);
+      g.fillStyle = mixHex(color, 0.28);
+      g.fillRect(4, 5, 4, 24);
+      g.fillStyle = '#102028';
+      g.fillRect(5, 8, 12, 10);
+      g.fillStyle = '#9fd4ea';
+      g.fillRect(6, 9, 10, 7);
+      g.fillStyle = '#fff';
+      g.fillRect(7, 10, 3, 2);
+      g.fillStyle = '#ffe14a';
+      g.fillRect(6, 26, 2, 2);
+      g.fillStyle = '#ff3b4e';
+      g.fillRect(14, 6, 2, 2);
+      g.fillStyle = '#141018';
+      g.fillRect(3, 6, 4, 5);
+      g.fillRect(15, 6, 4, 5);
+      g.fillRect(3, 24, 4, 5);
+      g.fillRect(15, 24, 4, 5);
+    }
+    return c;
+  }
+
+  function makeFountainSprite() {
+    const c = document.createElement('canvas');
+    c.width = 54;
+    c.height = 48;
+    const g = c.getContext('2d');
+    g.fillStyle = '#3a3848';
+    g.fillRect(4, 28, 46, 16);
+    g.fillStyle = '#7a748c';
+    g.fillRect(6, 22, 42, 16);
+    g.fillStyle = '#1a6ea8';
+    g.fillRect(12, 18, 30, 16);
+    g.fillStyle = '#3ec2e0';
+    g.fillRect(16, 16, 22, 12);
+    g.fillStyle = '#d8fbff';
+    g.fillRect(24, 8, 6, 12);
+    g.fillRect(22, 6, 10, 3);
+    g.fillStyle = '#9ad8ea';
+    g.fillRect(18, 20, 6, 2);
+    return c;
+  }
+
+  const carCache = {};
+  let treeSprite = null;
+  let lampSprite = null;
+  let fountainSprite = null;
+
+  function buildProps() {
+    props = [];
+    signs = [];
+    fountains = [];
+    treeSprite = makeTreeSprite();
+    lampSprite = makeLampSprite();
+    fountainSprite = makeFountainSprite();
+    const blocks = (MAP / PERIOD) | 0;
+    for (let by = 0; by < blocks; by++) {
+      for (let bx = 0; bx < blocks; bx++) {
+        const kind = blockKind(bx, by);
+        const x0 = (bx * PERIOD + TW + 2) * TILE;
+        const y0 = (by * PERIOD + TW + 2) * TILE;
+        const fw = 8 * TILE;
+        const fh = 8 * TILE;
+        if (kind === 3) {
+          const pal = BUILDINGS[hash(bx, by) % BUILDINGS.length];
+          const seed = hash(bx + 9, by + 4);
+          const built = makeBuildingSprite(fw, fh, pal, seed);
+          const left = x0 - built.eaves;
+          const sortY = y0 + fh;
+          const lights = [];
+          for (let i = 0; i < built.lights.length; i++) {
+            const L = built.lights[i];
+            lights.push({
+              x: left + L.x,
+              y: sortY - built.canvas.height + L.y,
+              r: 30,
+              color: i === built.lights.length - 1 ? NEONS[seed % NEONS.length] : pal.win,
+            });
+          }
+          props.push({
+            img: built.canvas,
+            x: left,
+            sortY: sortY,
+            shadowW: fw * 0.86,
+            shadowH: 12,
+            lights: lights,
+            kind: 'build',
+          });
+          addLamp(x0 - 14, sortY + 6);
+          addLamp(x0 + fw + 2, sortY + 6);
+        } else if (kind === 0) {
+          props.push({
+            img: fountainSprite,
+            x: x0 + fw / 2 - fountainSprite.width / 2,
+            sortY: y0 + fh / 2 + 16,
+            shadowW: 46,
+            shadowH: 12,
+            lights: [{ x: x0 + fw / 2, y: y0 + fh / 2, r: 42, color: '#9eecff' }],
+            kind: 'fountain',
+          });
+          fountains.push({ x: x0 + fw / 2, y: y0 + fh / 2 });
+        }
+      }
+    }
+    for (let ty = 0; ty < MAP; ty++) {
+      for (let tx = 0; tx < MAP; tx++) {
+        const t = tiles[ty * MAP + tx];
+        const px = tx * TILE;
+        const py = ty * TILE;
+        if (t === T_TREE) {
+          props.push({
+            img: treeSprite,
+            x: px + TILE / 2 - treeSprite.width / 2,
+            sortY: py + TILE - 1,
+            shadowW: 22,
+            shadowH: 8,
+            lights: [],
+            kind: 'tree',
+          });
+        } else if (t === T_CAR) {
+          const mx = tx % PERIOD;
+          const my = ty % PERIOD;
+          const horiz = my < TW && mx >= TW;
+          const color = CAR_COLORS[hash(tx, ty) % CAR_COLORS.length];
+          const key = color + (horiz ? 'h' : 'v');
+          if (!carCache[key]) carCache[key] = makeCarSprite(color, horiz);
+          const img = carCache[key];
+          props.push({
+            img: img,
+            x: px + TILE / 2 - img.width / 2,
+            sortY: py + TILE - 1,
+            shadowW: horiz ? 24 : 16,
+            shadowH: 7,
+            lights: [],
+            kind: 'car',
+          });
+        }
+      }
+    }
+  }
+
+  function addLamp(x, y) {
+    if (isSolid(x, y) || isSolid(x + 8, y)) return;
+    props.push({
+      img: lampSprite,
+      x: x - 8,
+      sortY: y + 4,
+      shadowW: 14,
+      shadowH: 6,
+      lights: [{ x: x, y: y - 36, r: 78, color: '#ffe7a8' }],
+      kind: 'lamp',
+    });
   }
 
   function isSolid(x, y) {
@@ -953,8 +1247,8 @@
     while (pixel > 2 && (sw < pixel * 160 || sh < pixel * 180)) pixel -= 1;
     // Phones are narrow. Zoom in so the character stays readable, but never wider than the screen.
     if (sw <= 520 && sh >= 640 && sw >= 120 * 3) pixel = 3;
-    // About 20% more of the city on screen. One full integer step would jump too far.
-    pixel = pixel / 1.2;
+    // Previous zoom was /1.2. Another /1.42 shows about 42% more of the city.
+    pixel = pixel / 1.2 / 1.42;
     const w = Math.max(1, Math.floor(sw / pixel));
     const h = Math.max(1, Math.floor(sh / pixel));
     if (canvas.width !== w || canvas.height !== h) {
@@ -962,6 +1256,9 @@
       canvas.height = h;
       vignette = null;
       vignetteKey = '';
+      lightCanvas = null;
+      bloomCanvas = null;
+      dofCanvas = null;
     }
     canvas.style.width = (w * pixel) + 'px';
     canvas.style.height = (h * pixel) + 'px';
@@ -1068,13 +1365,13 @@
   function spdMul() { return 1 + Math.min(0.28, elapsed * 0.0015); }
 
   function makeEnemy(type, x, y) {
-    const open = findOpen(x, y, type === 'boss' ? 12 : 7) || { x: x, y: y };
+    const open = findOpen(x, y, type === 'boss' ? 16 : 10) || { x: x, y: y };
     const base = {
-      zombie: { hp: 16, speed: 34, dmg: 8, r: 6, xp: 2 },
-      cop: { hp: 26, speed: 60, dmg: 11, r: 6, xp: 3 },
-      dealer: { hp: 20, speed: 44, dmg: 6, r: 6, xp: 4 },
-      alfa: { hp: 64, speed: 32, dmg: 14, r: 8, xp: 8 },
-      boss: { hp: 480, speed: 38, dmg: 16, r: 11, xp: 40 },
+      zombie: { hp: 16, speed: 44, dmg: 8, r: 9, xp: 2 },
+      cop: { hp: 26, speed: 76, dmg: 11, r: 9, xp: 3 },
+      dealer: { hp: 20, speed: 56, dmg: 6, r: 9, xp: 4 },
+      alfa: { hp: 64, speed: 42, dmg: 14, r: 12, xp: 8 },
+      boss: { hp: 480, speed: 48, dmg: 16, r: 16, xp: 40 },
     }[type];
     const e = {
       id: nextId++,
@@ -1329,8 +1626,8 @@
             kind: 'crystal',
             x: player.x,
             y: player.y - 4,
-            vx: Math.cos(ang) * 230,
-            vy: Math.sin(ang) * 230,
+            vx: Math.cos(ang) * 300,
+            vy: Math.sin(ang) * 300,
             life: 0.75,
             alive: true,
             r: 4,
@@ -1349,8 +1646,8 @@
       carts.pos = [];
       for (let i = 0; i < n; i++) {
         const a = carts.ang + (i / n) * Math.PI * 2;
-        const x = player.x + Math.cos(a) * 46;
-        const y = player.y + Math.sin(a) * 46;
+        const x = player.x + Math.cos(a) * 64;
+        const y = player.y + Math.sin(a) * 64;
         carts.pos.push({ x: x, y: y, a: a });
         if (isSolid(x, y)) continue;
         for (let k = 0; k < enemies.length; k++) {
@@ -1395,8 +1692,8 @@
             kind: 'bottle',
             x: player.x,
             y: player.y - 4,
-            vx: Math.cos(ang) * 160,
-            vy: Math.sin(ang) * 160,
+            vx: Math.cos(ang) * 210,
+            vy: Math.sin(ang) * 210,
             life: 0.55,
             alive: true,
             r: 4,
@@ -1512,7 +1809,7 @@
         e.shootT -= dt;
         if (e.shootT <= 0 && dist < 260 && dist > 36) {
           e.shootT = Math.max(0.85, 2.15 - elapsed * 0.004);
-          const sp = 120;
+          const sp = 155;
           bullets.push({
             x: e.x,
             y: e.y,
@@ -1714,8 +2011,64 @@
   }
 
   function drawShadow(x, y, rw) {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(Math.round(x - cam.x - rw), Math.round(y - cam.y - 2), rw * 2, 4);
+    const cx = Math.round(x - cam.x);
+    const cy = Math.round(y - cam.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rw + 3, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 1, rw, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function propLift(sortY) {
+    const mid = cam.y + view.h * 0.5;
+    return Math.max(-6, Math.min(6, Math.round((sortY - mid) * 0.04)));
+  }
+
+  function propOnScreen(pr) {
+    const top = pr.sortY - pr.img.height;
+    return pr.x + pr.img.width > cam.x - 30 && pr.x < cam.x + view.w + 30 && pr.sortY > cam.y - 20 && top < cam.y + view.h + 40;
+  }
+
+  function drawProp(pr) {
+    const lift = propLift(pr.sortY);
+    const x = Math.round(pr.x - cam.x);
+    const y = Math.round(pr.sortY - cam.y - pr.img.height + lift);
+    ctx.drawImage(pr.img, x, y);
+    if (pr.kind === 'lamp') {
+      const pulse = 0.55 + Math.sin(globalTime * 4 + pr.x) * 0.2;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#fff6c8';
+      ctx.fillRect(x + 4, y + 8, 8, 3);
+      ctx.globalAlpha = 1;
+    } else if (pr.kind === 'fountain') {
+      const r = 4 + ((globalTime * 8) % 7);
+      ctx.strokeStyle = '#d8fbff';
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.arc(Math.round(pr.x + pr.img.width / 2 - cam.x), Math.round(pr.sortY - cam.y - 16), r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawActor(ent) {
+    if (!onScreen(ent.x, ent.y, 48)) return;
+    if (ent === player && player.iframe > 0 && ((globalTime * 24) | 0) % 2 === 0) return;
+    let len = spr.player.length;
+    if (ent !== player) {
+      if (ent.type === 'boss') len = spr.boss.length;
+      else if (spr[ent.type]) len = spr[ent.type].length;
+    }
+    const rate = ent === player && player.moving ? 9 : 6;
+    const frame = ((globalTime * rate + (ent.phase || 0)) | 0) % len;
+    const img = actorSprite(ent, frame);
+    const foot = Math.max(6, (ent.radius * 0.7) | 0);
+    drawShadow(ent.x, ent.y + ent.radius * 0.35, ent.radius + 3);
+    drawSprite(img, ent.x, ent.y + ent.radius * 0.15, ent.facing < 0, foot);
   }
 
   function onScreen(x, y, m) {
@@ -1731,65 +2084,41 @@
     const sh = Math.min(mapCanvas.height - sy, view.h - dy);
     if (sw > 0 && sh > 0) ctx.drawImage(mapCanvas, sx, sy, sw, sh, dx, dy, sw, sh);
 
-    for (let i = 0; i < fountains.length; i++) {
-      const f = fountains[i];
-      if (!onScreen(f.x, f.y, 24)) continue;
-      const r = 3 + ((globalTime * 10 + i) % 7);
-      ctx.strokeStyle = '#d8fbff';
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = 1;
+    const queue = [];
+    for (let i = 0; i < props.length; i++) {
+      const pr = props[i];
+      if (!propOnScreen(pr)) continue;
+      const cx = Math.round(pr.x + pr.img.width / 2 - cam.x);
+      const cy = Math.round(pr.sortY - cam.y + 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.beginPath();
-      ctx.arc(Math.round(f.x - cam.x), Math.round(f.y - cam.y), r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      queue.push(pr.sortY, i, 0);
     }
-
-    for (let i = 0; i < signs.length; i++) {
-      const s = signs[i];
-      if (!onScreen(s.x, s.y, 20)) continue;
-      const on = Math.sin(globalTime * 5 + s.phase) > -0.15;
-      const x = Math.round(s.x - cam.x);
-      const y = Math.round(s.y - cam.y);
-      ctx.fillStyle = '#140c18';
-      ctx.fillRect(x - 1, y - 1, s.w + 2, s.h + 2);
-      ctx.fillStyle = on ? s.color : '#161222';
-      ctx.fillRect(x, y, s.w, s.h);
-      if (on) {
-        ctx.fillStyle = '#fff';
-        ctx.globalAlpha = 0.45;
-        ctx.fillRect(x + 1, y, 2, 1);
-        ctx.globalAlpha = 1;
-      }
-    }
-
     for (let i = 0; i < gems.length; i++) {
       const g = gems[i];
-      if (!g.alive || !onScreen(g.x, g.y, 20)) continue;
-      const bob = Math.sin(globalTime * 5 + g.phase) * 1.5;
-      const glint = ((globalTime * 6 + g.phase) | 0) % 5 === 0;
-      drawCentered(gemSprite(g.value, glint), g.x, g.y + bob);
+      if (g.alive && onScreen(g.x, g.y, 24)) queue.push(g.y, i, 1);
     }
-
-    const actors = [];
-    for (let i = 0; i < enemies.length; i++) if (enemies[i].alive) actors.push(enemies[i]);
-    actors.push(player);
-    actors.sort((a, b) => a.y - b.y);
-    for (let i = 0; i < actors.length; i++) {
-      const ent = actors[i];
-      if (!onScreen(ent.x, ent.y, 40)) continue;
-      if (ent === player && player.iframe > 0 && ((globalTime * 24) | 0) % 2 === 0) continue;
-      let len = spr.player.length;
-      if (ent !== player) {
-        if (ent.type === 'boss') len = spr.boss.length;
-        else if (spr[ent.type]) len = spr[ent.type].length;
-      }
-      const rate = ent === player && player.moving ? 9 : 6;
-      const frame = ((globalTime * rate + (ent.phase || 0)) | 0) % len;
-      const img = actorSprite(ent, frame);
-      const foot = ent.radius + 2;
-      drawShadow(ent.x, ent.y + ent.radius * 0.2, ent.radius + 2);
-      const flip = ent.facing < 0;
-      drawSprite(img, ent.x, ent.y + ent.radius * 0.15, flip, foot);
+    for (let i = 0; i < enemies.length; i++) {
+      if (enemies[i].alive) queue.push(enemies[i].y, i, 2);
+    }
+    if (player) queue.push(player.y, 0, 3);
+    const order = [];
+    for (let i = 0; i < queue.length; i += 3) order.push(i);
+    order.sort((a, b) => queue[a] - queue[b]);
+    for (let n = 0; n < order.length; n++) {
+      const i = order[n];
+      const kind = queue[i + 2];
+      const idx = queue[i + 1];
+      if (kind === 0) drawProp(props[idx]);
+      else if (kind === 1) {
+        const g = gems[idx];
+        const bob = Math.sin(globalTime * 5 + g.phase) * 1.5;
+        const glint = ((globalTime * 6 + g.phase) | 0) % 5 === 0;
+        drawCentered(gemSprite(g.value, glint), g.x, g.y + bob);
+      } else if (kind === 2) drawActor(enemies[idx]);
+      else drawActor(player);
     }
 
     if (weapons && weapons.carts && weapons.carts.pos) {
@@ -1862,6 +2191,15 @@
       ctx.globalAlpha = 1;
     }
 
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      if (!onScreen(m.x, m.y, 8)) continue;
+      ctx.globalAlpha = 0.35 + (m.neon ? 0.35 : 0);
+      ctx.fillStyle = m.neon ? '#ff8ac0' : '#e4e0f0';
+      ctx.fillRect(Math.round(m.x - cam.x), Math.round(m.y - cam.y), m.size, m.size);
+      ctx.globalAlpha = 1;
+    }
+
     if (barks.length) {
       ctx.font = '700 8px Courier New, ui-monospace, monospace';
       ctx.textAlign = 'center';
@@ -1896,11 +2234,154 @@
         view.w / 2, view.h / 2, Math.max(view.w, view.h) * 0.72
       );
       g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,0.32)');
+      g.addColorStop(1, 'rgba(0,0,0,0.22)');
       vignette = g;
     }
+    paintGrade();
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, view.w, view.h);
+    if (quality === 'high') paintEdgeBlur();
+  }
+
+  function collectLights() {
+    const list = [];
+    if (player) list.push({ x: player.x, y: player.y - 8, r: 72, color: '#ffe1b0' });
+    for (let i = 0; i < props.length; i++) {
+      const pr = props[i];
+      if (!pr.lights || !pr.lights.length) continue;
+      if (!propOnScreen(pr)) continue;
+      for (let k = 0; k < pr.lights.length; k++) list.push(pr.lights[k]);
+    }
+    const gemCap = quality === 'low' ? 0 : 6;
+    let gemsLit = 0;
+    for (let i = 0; i < gems.length && gemsLit < gemCap; i++) {
+      const g = gems[i];
+      if (!g.alive || !onScreen(g.x, g.y, 10)) continue;
+      list.push({ x: g.x, y: g.y, r: 28, color: g.value >= 8 ? '#9eecff' : '#e2b6ff' });
+      gemsLit++;
+    }
+    if (quality !== 'low') {
+      for (let i = 0; i < flashes.length; i++) {
+        const f = flashes[i];
+        if (f.life > 0) list.push({ x: f.x, y: f.y, r: 42, color: f.color });
+      }
+    }
+    return list;
+  }
+
+  function paintGrade() {
+    const cap = quality === 'low' ? 8 : 16;
+    const lights = collectLights();
+    if (!lightCanvas) {
+      lightCanvas = document.createElement('canvas');
+      lightCanvas.width = view.w;
+      lightCanvas.height = view.h;
+    }
+    const l = lightCanvas.getContext('2d');
+    l.globalCompositeOperation = 'source-over';
+    l.clearRect(0, 0, view.w, view.h);
+    l.fillStyle = quality === 'low' ? 'rgba(8, 10, 24, 0.34)' : 'rgba(6, 8, 22, 0.48)';
+    l.fillRect(0, 0, view.w, view.h);
+    l.globalCompositeOperation = 'destination-out';
+    const n = Math.min(cap, lights.length);
+    const steps = quality === 'low' ? 2 : 3;
+    for (let i = 0; i < n; i++) {
+      const L = lights[i];
+      const sx = L.x - cam.x;
+      const sy = L.y - cam.y;
+      for (let s = steps; s >= 1; s--) {
+        l.fillStyle = 'rgba(0,0,0,' + (0.45 + 0.45 * (s / steps)) + ')';
+        l.beginPath();
+        l.arc(sx, sy, L.r * (s / steps), 0, Math.PI * 2);
+        l.fill();
+      }
+    }
+    l.globalCompositeOperation = 'source-over';
+    ctx.drawImage(lightCanvas, 0, 0);
+    if (quality !== 'low') {
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < n; i++) {
+        const L = lights[i];
+        ctx.globalAlpha = 0.14;
+        ctx.fillStyle = L.color;
+        ctx.beginPath();
+        ctx.arc(L.x - cam.x, L.y - cam.y, L.r * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      paintBloom(lights, n);
+    }
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#9eb0dc';
+    ctx.fillRect(0, 0, view.w, view.h);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = '#ffb060';
+    ctx.fillRect(0, 0, view.w, view.h);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  function paintBloom(lights, n) {
+    const bw = Math.max(2, view.w >> 1);
+    const bh = Math.max(2, view.h >> 1);
+    if (!bloomCanvas || bloomCanvas.width !== bw) {
+      bloomCanvas = document.createElement('canvas');
+      bloomCanvas.width = bw;
+      bloomCanvas.height = bh;
+    }
+    if ((fxFrame & 1) === 0) {
+      const b = bloomCanvas.getContext('2d');
+      b.clearRect(0, 0, bw, bh);
+      b.fillStyle = '#fff3c4';
+      for (let i = 0; i < n; i++) {
+        const L = lights[i];
+        const x = (L.x - cam.x) * 0.5;
+        const y = (L.y - cam.y) * 0.5;
+        b.globalAlpha = 0.85;
+        b.beginPath();
+        b.arc(x, y, Math.max(2, L.r * 0.12), 0, Math.PI * 2);
+        b.fill();
+      }
+      b.globalAlpha = 1;
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.35;
+    try { ctx.filter = 'blur(3px)'; } catch (err) { ctx.filter = 'none'; }
+    ctx.drawImage(bloomCanvas, 0, 0, view.w, view.h);
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+
+  function paintEdgeBlur() {
+    const dw = Math.max(2, view.w >> 2);
+    const dh = Math.max(2, view.h >> 2);
+    if (!dofCanvas || dofCanvas.width !== dw) {
+      dofCanvas = document.createElement('canvas');
+      dofCanvas.width = dw;
+      dofCanvas.height = dh;
+    }
+    if ((fxFrame & 1) === 0) {
+      const d = dofCanvas.getContext('2d');
+      d.clearRect(0, 0, dw, dh);
+      try { d.filter = 'blur(1px)'; } catch (err) { d.filter = 'none'; }
+      d.drawImage(canvas, 0, 0, dw, dh);
+      d.filter = 'none';
+      d.globalCompositeOperation = 'destination-in';
+      const inner = Math.min(dw, dh) * 0.42;
+      const g = d.createRadialGradient(dw / 2, dh / 2, inner, dw / 2, dh / 2, Math.max(dw, dh) * 0.72);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.5)');
+      d.fillStyle = g;
+      d.fillRect(0, 0, dw, dh);
+      d.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(dofCanvas, 0, 0, view.w, view.h);
+    ctx.globalAlpha = 1;
   }
 
   function syncHud() {
@@ -1940,7 +2421,10 @@
       c.height = 22;
       const g = c.getContext('2d');
       g.imageSmoothingEnabled = false;
-      g.drawImage(img, ((22 - img.width) / 2) | 0, ((22 - img.height) / 2) | 0);
+      const fit = Math.min(18 / img.width, 18 / img.height);
+      const dw = Math.max(1, Math.round(img.width * fit));
+      const dh = Math.max(1, Math.round(img.height * fit));
+      g.drawImage(img, 0, 0, img.width, img.height, ((22 - dw) / 2) | 0, ((22 - dh) / 2) | 0, dw, dh);
       weaponIcons.append(c);
     }
   }
@@ -1954,7 +2438,7 @@
       level: 1,
       xp: 0,
       next: xpFor(1),
-      radius: 5,
+      radius: 10,
       facing: 1,
       moving: false,
       iframe: 0,
@@ -2315,6 +2799,35 @@
     },
   ];
 
+  function makeMote() {
+    return {
+      x: cam.x + Math.random() * Math.max(1, view.w),
+      y: cam.y + Math.random() * Math.max(1, view.h),
+      vx: -8 + Math.random() * 16,
+      vy: -14 - Math.random() * 10,
+      neon: Math.random() < 0.2,
+      size: 1 + ((Math.random() * 2) | 0),
+    };
+  }
+
+  function tickMotes(dt) {
+    const cap = quality === 'low' ? 8 : 24;
+    if (reduceMotion) {
+      motes.length = 0;
+      return;
+    }
+    if (motes.length > cap) motes.length = cap;
+    while (motes.length < cap) motes.push(makeMote());
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.x < cam.x - 16 || m.x > cam.x + view.w + 16 || m.y < cam.y - 16 || m.y > cam.y + view.h + 16) {
+        motes[i] = makeMote();
+      }
+    }
+  }
+
   function loop(now) {
     if (!lastTs) lastTs = now;
     const dt = Math.min(0.05, (now - lastTs) / 1000);
@@ -2328,6 +2841,19 @@
     }
     shake = Math.max(0, shake - dt * 14);
     updateCamera();
+    fxFrame++;
+    if (!hidden) {
+      if (dt > 0.028) {
+        slowStreak++;
+        fastStreak = 0;
+      } else {
+        fastStreak++;
+        slowStreak = Math.max(0, slowStreak - 1);
+      }
+      if (slowStreak > 20) quality = 'low';
+      if (quality === 'low' && fastStreak > 150) quality = 'high';
+      tickMotes(dt);
+    }
     draw();
     syncHud();
     requestAnimationFrame(loop);
