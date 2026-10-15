@@ -3094,6 +3094,10 @@
   }
 
   function actorFrame(ent) {
+    if (ent === player && window.GTAPlayer && window.GTAPlayer.ready) {
+      const hero = window.GTAPlayer.frame(player, globalTime);
+      if (hero) return hero;
+    }
     const pose = ent.pose || 'down';
     const moving = ent === player ? player.moving : ent.moving !== false;
     const type = ent.type || 'player';
