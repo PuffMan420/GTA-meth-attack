@@ -66,6 +66,7 @@
   const NEONS = ['#ff4d8d', '#5ce1e6', '#ffe14a', '#b06bff', '#3dff8a'];
   const CAR_COLORS = ['#e23b4a', '#3aa0e8', '#f2c14a', '#f4f4f8', '#7a4ae0', '#3ecf6e', '#ff8a3d'];
 
+  const stage = document.getElementById('stage');
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) return;
@@ -83,9 +84,6 @@
   const hint = document.getElementById('hint');
   const muteBtn = document.getElementById('mute');
   const goreBtn = document.getElementById('gore');
-  const joystick = document.getElementById('joystick');
-  const knob = document.getElementById('knob');
-  const touchHint = document.getElementById('touch-hint');
   const banner = document.getElementById('banner');
   const overlay = document.getElementById('overlay');
   const titleScreen = document.getElementById('title-screen');
@@ -133,15 +131,6 @@
   let nextId = 1;
   let aimX = 1;
   let aimY = 0;
-  let joyX = 0;
-  let joyY = 0;
-  let joyId = null;
-  let joyBaseX = 0;
-  let joyBaseY = 0;
-  const coarsePointer = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-  let wantJoy = coarsePointer;
-  let touchHintSeen = false;
-  try { touchHintSeen = localStorage.getItem('gta-meth-touch-hint') === '1'; } catch (err) { /* ignore */ }
   let lastTs = 0;
   let choosing = false;
   let flashes = [];
@@ -1654,19 +1643,15 @@
     return null;
   }
 
+  const STAGE_W = 1280;
+  const STAGE_H = 720;
+
   function resize() {
-    const sw = Math.max(1, window.innerWidth || 320);
-    const sh = Math.max(1, window.innerHeight || 480);
-    let pixel = 4;
-    while (pixel > 2 && (sw < pixel * 160 || sh < pixel * 180)) pixel -= 1;
-    // Phones are narrow. Zoom in so the character stays readable, but never wider than the screen.
-    if (sw <= 520 && sh >= 640 && sw >= 120 * 3) pixel = 3;
-    // Previous zoom was /1.2. Another /1.42 shows about 42% more of the city.
-    pixel = pixel / 1.2 / 1.42;
-    const w = Math.max(1, Math.floor(sw / pixel));
-    const h = Math.max(1, Math.floor(sh / pixel));
-    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
-    drawScale = Math.max(1, Math.min(3, Math.round(pixel * dpr)));
+    // Same desktop zoom as before: pixel 4, then /1.2 and /1.42. No phone size, no devicePixelRatio.
+    const pixel = 4 / 1.2 / 1.42;
+    const w = Math.floor(STAGE_W / pixel);
+    const h = Math.floor(STAGE_H / pixel);
+    drawScale = Math.max(1, Math.round(pixel));
     const bw = w * drawScale;
     const bh = h * drawScale;
     if (canvas.width !== bw || canvas.height !== bh) {
@@ -1681,11 +1666,14 @@
       dofCanvas = null;
       dofGrad = null;
     }
-    canvas.style.width = (w * pixel) + 'px';
-    canvas.style.height = (h * pixel) + 'px';
     view.w = w;
     view.h = h;
     ctx.imageSmoothingEnabled = false;
+    const sw = Math.max(1, window.innerWidth || STAGE_W);
+    const sh = Math.max(1, window.innerHeight || STAGE_H);
+    const fit = Math.min(sw / STAGE_W, sh / STAGE_H);
+    const scale = fit >= 1 ? Math.max(1, Math.floor(fit)) : fit;
+    if (stage) stage.style.transform = 'scale(' + scale + ')';
   }
 
   function cameraTarget() {
@@ -1738,10 +1726,6 @@
   function readMove() {
     let x = (held.right ? 1 : 0) - (held.left ? 1 : 0);
     let y = (held.down ? 1 : 0) - (held.up ? 1 : 0);
-    if (x === 0 && y === 0) {
-      x = joyX;
-      y = joyY;
-    }
     const len = Math.hypot(x, y);
     if (len > 1) {
       x /= len;
@@ -1751,18 +1735,8 @@
     return { x: x, y: y };
   }
 
-  function showJoy(on) {
-    joystick.hidden = !on;
-  }
-
   function addShake(n) {
     if (!reduceMotion) shake = Math.max(shake, n);
-  }
-
-  function buzz(pattern) {
-    try {
-      if (navigator.vibrate) navigator.vibrate(pattern);
-    } catch (err) { /* ignore */ }
   }
 
   function burst(x, y, color, n) {
@@ -2304,7 +2278,6 @@
     player.kvy += (dy / len) * 130;
     addShake(4);
     sfx.hurt();
-    buzz(18);
     if (player.hp <= 0) {
       player.hp = 0;
       puff(player.x, player.y, 6);
@@ -4708,7 +4681,6 @@
     levelEl.textContent = 'LV ' + player.level;
     killsEl.textContent = 'KO ' + kills;
     hint.hidden = !(state === 'play' && elapsed < 12 && !moved);
-    if (touchHint) touchHint.hidden = !(state === 'play' && !touchHintSeen && (wantJoy || coarsePointer));
     let boss = null;
     for (let i = 0; i < enemies.length; i++) {
       if (enemies[i].alive && enemies[i].type === 'boss') boss = enemies[i];
@@ -4834,7 +4806,7 @@
       const desc = document.createElement('em');
       desc.textContent = typeof u.desc === 'function' ? u.desc() : u.desc;
       btn.append(key, tag, name, desc);
-      btn.addEventListener('pointerdown', (e) => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         choose(i);
@@ -4875,7 +4847,6 @@
     deadScreen.hidden = true;
     overlay.hidden = true;
     hud.hidden = false;
-    showJoy(false);
   }
 
   function showDead() {
@@ -4907,7 +4878,6 @@
     pending = 0;
     player.iframe = 0;
     sfx.dead();
-    buzz([30, 40, 80]);
     showDead();
   }
 
@@ -4976,7 +4946,6 @@
       deadScreen.hidden = true;
       overlay.hidden = true;
       hud.hidden = false;
-      showJoy(false);
       refreshWeaponIcons();
     } else {
       state = 'title';
@@ -4985,7 +4954,6 @@
       levelScreen.hidden = true;
       deadScreen.hidden = true;
       hud.hidden = true;
-      showJoy(false);
     }
     snapCamera();
   }
@@ -5228,104 +5196,12 @@
 
   window.addEventListener('blur', () => {
     held.up = held.down = held.left = held.right = false;
-    endJoy();
   });
 
   window.addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => { lastTs = 0; });
 
-  document.addEventListener('touchmove', (e) => {
-    if (!overlay.hidden) return;
-    if (e.cancelable) e.preventDefault();
-  }, { passive: false });
   window.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  const JOY_MAX = 46;
-  const JOY_MARGIN = 66;
-
-  function placeJoy(x, y) {
-    joyBaseX = x;
-    joyBaseY = y;
-    joystick.style.left = x + 'px';
-    joystick.style.top = y + 'px';
-  }
-
-  function endJoy() {
-    joyId = null;
-    joyX = 0;
-    joyY = 0;
-    joystick.hidden = true;
-    knob.style.transform = 'translate(-50%, -50%)';
-  }
-
-  function rememberTouchHint() {
-    if (touchHintSeen) return;
-    touchHintSeen = true;
-    if (touchHint) touchHint.hidden = true;
-    try { localStorage.setItem('gta-meth-touch-hint', '1'); } catch (err) { /* ignore */ }
-  }
-
-  function uiOwns(node) {
-    return !!(node && node.closest && node.closest('#mute, #overlay, button, a, input, textarea, select'));
-  }
-
-  function joyFrom(clientX, clientY) {
-    let dx = clientX - joyBaseX;
-    let dy = clientY - joyBaseY;
-    let len = Math.hypot(dx, dy);
-    if (len > JOY_MAX + 28) {
-      const follow = Math.min(22, (len - JOY_MAX - 28) * 0.4);
-      const nx = dx / len;
-      const ny = dy / len;
-      let nxBase = joyBaseX + nx * follow;
-      let nyBase = joyBaseY + ny * follow;
-      nxBase = Math.max(JOY_MARGIN, Math.min(window.innerWidth - JOY_MARGIN, nxBase));
-      nyBase = Math.max(JOY_MARGIN, Math.min(window.innerHeight - JOY_MARGIN, nyBase));
-      placeJoy(nxBase, nyBase);
-      dx = clientX - joyBaseX;
-      dy = clientY - joyBaseY;
-      len = Math.hypot(dx, dy);
-    }
-    const span = len || 1;
-    const cl = Math.min(JOY_MAX, len);
-    const nx = dx / span;
-    const ny = dy / span;
-    let jx = nx * (cl / JOY_MAX);
-    let jy = ny * (cl / JOY_MAX);
-    if (Math.hypot(jx, jy) < 0.18) {
-      jx = 0;
-      jy = 0;
-    }
-    joyX = jx;
-    joyY = jy;
-    knob.style.transform = 'translate(calc(-50% + ' + (nx * cl) + 'px), calc(-50% + ' + (ny * cl) + 'px))';
-  }
-
-  window.addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'touch') return;
-    wantJoy = true;
-    if (joyId !== null) return;
-    if (state !== 'play') return;
-    if (uiOwns(e.target)) return;
-    joyId = e.pointerId;
-    placeJoy(e.clientX, e.clientY);
-    joystick.hidden = false;
-    joyFrom(e.clientX, e.clientY);
-    rememberTouchHint();
-    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-  });
-  window.addEventListener('pointermove', (e) => {
-    if (e.pointerId !== joyId) return;
-    joyFrom(e.clientX, e.clientY);
-  });
-  window.addEventListener('pointerup', (e) => {
-    if (e.pointerId !== joyId) return;
-    endJoy();
-  });
-  window.addEventListener('pointercancel', (e) => {
-    if (e.pointerId !== joyId) return;
-    endJoy();
-  });
 
   function startGame() {
     if (state !== 'title') return;
@@ -5339,12 +5215,8 @@
     beginRun(true);
   }
 
-  startBtn.addEventListener('pointerdown', (e) => {
-    e.stopPropagation();
-  });
   startBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (e.pointerType === 'touch') wantJoy = true;
     startGame();
   });
   retryBtn.addEventListener('click', (e) => {
@@ -5352,15 +5224,13 @@
     restart();
   });
 
-  overlay.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch') wantJoy = true;
+  overlay.addEventListener('click', (e) => {
     sfx.unlock();
     if (state === 'title') startGame();
     else if (state === 'dead') restart();
   });
 
   if (goreBtn) {
-    goreBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     goreBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       goreOn = !goreOn;
@@ -5373,7 +5243,6 @@
     });
   }
 
-  muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   muteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     sfx.unlock();

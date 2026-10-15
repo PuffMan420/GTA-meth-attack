@@ -2,16 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#100e16">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
   <title>GTA Meth Attack</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23140c18'/%3E%3Crect x='4' y='2' width='8' height='5' fill='%23f2c19a'/%3E%3Crect x='3' y='7' width='10' height='5' fill='%23ffe14a'/%3E%3Crect x='5' y='12' width='2' height='3' fill='%2331408f'/%3E%3Crect x='9' y='12' width='2' height='3' fill='%2331408f'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="game" width="320" height="180" aria-label="Playfield"></canvas>
+  <div id="stage">
+  <canvas id="game" width="1090" height="612" aria-label="Playfield"></canvas>
 
   <div id="hud" hidden>
     <div id="hp-row">
@@ -36,15 +33,9 @@
     <p id="hint" hidden>Move — the guns shoot for you</p>
   </div>
 
-  <p id="touch-hint" hidden>Touch anywhere to move</p>
-
   <div id="toggles">
     <button id="gore" type="button" aria-pressed="false">Gore on</button>
     <button id="mute" type="button" aria-pressed="false">Sound on</button>
-  </div>
-
-  <div id="joystick" hidden aria-hidden="true">
-    <div id="knob"></div>
   </div>
 
   <div id="banner" hidden>KINGPIN BUSTER IS IN TOWN</div>
@@ -56,7 +47,7 @@
       <p class="tag">Top-down GTA meets enemy waves. You walk. The guns shoot themselves.</p>
       <ul>
         <li><b>Keyboard:</b> WASD or the arrow keys</li>
-        <li><b>Phone:</b> touch anywhere and drag</li>
+        <li><b>Mouse:</b> click GO, the cards, and the buttons up top</li>
         <li>Grab glitter (XP) and pick <b>1 of 3</b> cards when you level up</li>
       </ul>
       <button id="start-btn" type="button">GO</button>
@@ -76,6 +67,7 @@
       <p class="fine">Keep circling the block. Standing in the crowd is a bad plan.</p>
       <button id="retry-btn" type="button">AGAIN</button>
     </section>
+  </div>
   </div>
 
   <script src="js/detail.js"></script>
