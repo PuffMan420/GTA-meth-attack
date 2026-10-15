@@ -1,0 +1,28 @@
+SBS - Isometric Roads Pack
+by Screaming Brain Studios
+https://screamingbrainstudios.itch.io/isometric-roads-pack
+
+License: CC0 1.0 Universal (public domain)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The pack is free (name your own price, including $0). The author says
+credit is not required. This note is here anyway.
+
+Only the small realistic sheets are included. Each sheet is 512 by 192
+pixels: 4 columns and 3 rows of 128 by 64 tiles. Tiles are counted from
+the left, top to bottom. Slot 4 on every sheet is empty, so it is not
+used. No toon sheets and no large sheets are included.
+
+Files in this folder:
+- Road_Asphalt_03-128x64.png
+- Road_Asphalt_04-128x64.png
+- Road_Asphalt_10-128x64.png
+- Road_Asphalt_14-128x64.png
+- Road_Asphalt_16-128x64.png
+
+The flat magenta backdrop (red 255, green 0, blue 255) was made
+transparent so the tiles can sit on the city. The pictures are
+otherwise unchanged.
+
+The download page says the pack is CC0. The archive License.txt says
+the same: public domain, free to use, credit not required.

@@ -1007,6 +1007,95 @@
         if (mx === TW && my === 0) signals.push({ x: px + 4, y: py - 4 });
       }
     }
+    paintRoadTiles();
+  }
+
+  function paintRoadTiles() {
+    const roads = window.GTAIsoRoads;
+    if (!roads || !roads.ready || !mapCanvas || !roads.sheets || !roads.sheets.length) return;
+    const g = mapCanvas.getContext('2d');
+    const road = TW * TILE;
+    const step = PERIOD * TILE;
+    const blocks = (MAP / PERIOD) | 0;
+    const prevSmooth = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+
+    function sheetAt(bx, by) {
+      const n = roads.sheets.length;
+      return roads.sheets[((bx + by * 2) % n + n) % n];
+    }
+
+    function fillAsphalt(img, x, y, w, h) {
+      if (!img || w <= 0 || h <= 0) return;
+      g.save();
+      g.beginPath();
+      g.rect(x, y, w, h);
+      g.clip();
+      g.imageSmoothingEnabled = false;
+      const iw = img.width;
+      const ih = img.height;
+      for (let yy = y; yy < y + h; yy += ih) {
+        for (let xx = x; xx < x + w; xx += iw) g.drawImage(img, xx, yy);
+      }
+      g.restore();
+    }
+
+    for (let by = 0; by < blocks; by++) {
+      for (let bx = 0; bx < blocks; bx++) {
+        const sh = sheetAt(bx, by);
+        const x = bx * step;
+        const y = by * step;
+        fillAsphalt(sh.asphalt, x, y, road, road);
+        if (!sh.cross) continue;
+        g.save();
+        g.beginPath();
+        g.rect(x, y, road, road);
+        g.clip();
+        g.imageSmoothingEnabled = false;
+        g.drawImage(sh.cross, x - road / 2, y, road * 2, road);
+        g.restore();
+      }
+    }
+
+    for (let by = 0; by < blocks; by++) {
+      const y = by * step;
+      for (let bx = 0; bx < blocks; bx++) {
+        const sh = sheetAt(bx, by);
+        const x0 = bx * step + road;
+        const w = (bx + 1) * step - x0;
+        const phase = (bx * 53 + by * 97) % sh.horiz.width;
+        g.save();
+        g.beginPath();
+        g.rect(x0, y, w, road);
+        g.clip();
+        g.imageSmoothingEnabled = false;
+        for (let dx = x0 - phase; dx < x0 + w; dx += sh.horiz.width) {
+          g.drawImage(sh.horiz, dx, y);
+        }
+        g.restore();
+      }
+    }
+
+    for (let bx = 0; bx < blocks; bx++) {
+      const x = bx * step;
+      for (let by = 0; by < blocks; by++) {
+        const sh = sheetAt(bx, by);
+        const y0 = by * step + road;
+        const h = (by + 1) * step - y0;
+        const phase = (by * 53 + bx * 29) % sh.vert.height;
+        g.save();
+        g.beginPath();
+        g.rect(x, y0, road, h);
+        g.clip();
+        g.imageSmoothingEnabled = false;
+        for (let dy = y0 - phase; dy < y0 + h; dy += sh.vert.height) {
+          g.drawImage(sh.vert, x, dy);
+        }
+        g.restore();
+      }
+    }
+
+    g.imageSmoothingEnabled = prevSmooth;
   }
 
   function stretchStreetCars() {
@@ -5302,6 +5391,10 @@
   window.GTARebuildTown = function () {
     if (!tiles) return;
     buildProps();
+  };
+  window.GTAPaintRoads = function () {
+    if (!mapCanvas) return;
+    paintRoadTiles();
   };
   buildMap();
   beginRun(false);

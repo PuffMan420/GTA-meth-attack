@@ -41,5 +41,6 @@ Efter någon minut visas en länk, ungefär:
 - `style.css` — menyer och knappar
 - `js/game.js` — själva spelet
 - `assets/sbs-isometric-town/` — hus och tak från SBS - Isometric Town Pack av Screaming Brain Studios (CC0). Se `CREDITS.txt` i den mappen.
+- `assets/sbs-isometric-roads/` — vägar från SBS - Isometric Roads Pack av Screaming Brain Studios (CC0). Se `CREDITS.txt` i den mappen.
 
 Inget behöver installeras och inget behöver byggas.
