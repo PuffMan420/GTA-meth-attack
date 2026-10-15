@@ -72,9 +72,22 @@ button, ul, p, h1, h2, dl { margin: 0; }
 }
 
 #hp-fill, #xp-fill, #boss-fill {
+  position: relative;
   height: 100%;
   width: 100%;
   transform-origin: left center;
+  transition: width 0.16s linear;
+}
+
+#hp-fill::after, #xp-fill::after, #boss-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28%;
+  left: -40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  animation: bar-shine 2.4s ease-in-out infinite;
 }
 
 #hp-fill { background: linear-gradient(#b8ffd4, #3dff8a 55%, #14924a); width: 100%; }
@@ -233,6 +246,10 @@ button, ul, p, h1, h2, dl { margin: 0; }
   pointer-events: none;
 }
 
+#banner.pop {
+  animation: banner-pop 0.38s ease-out;
+}
+
 #overlay {
   position: fixed;
   z-index: 30;
@@ -315,6 +332,8 @@ li {
   box-shadow: 4px 4px 0 #000;
   cursor: pointer;
 }
+
+.card { animation: card-in 0.22s ease-out; }
 
 #start-btn, #retry-btn {
   min-width: 180px;
@@ -411,6 +430,22 @@ li {
   50% { filter: brightness(1.35); }
 }
 
+@keyframes bar-shine {
+  from { left: -40%; }
+  to { left: 130%; }
+}
+
+@keyframes banner-pop {
+  from { transform: translateX(-50%) scale(0.82); opacity: 0; }
+  to { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+@keyframes card-in {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #hp-fill.low { animation: none; }
+  #hp-fill.low, #hp-fill::after, #xp-fill::after, #boss-fill::after, #banner.pop, .card { animation: none; }
+  #hp-fill, #xp-fill, #boss-fill { transition: none; }
 }
