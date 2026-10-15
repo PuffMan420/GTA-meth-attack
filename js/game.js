@@ -102,6 +102,10 @@
   const cam = { x: 0, y: 0 };
   let drawScale = 1;
   const held = { up: false, down: false, left: false, right: false };
+  let stickX = 0;
+  let stickY = 0;
+  const stickEl = document.getElementById('stick');
+  const stickKnob = document.getElementById('stick-knob');
 
   let tiles = new Uint8Array(MAP * MAP);
   let solid = new Uint8Array(MAP * MAP);
@@ -802,16 +806,16 @@
 
   function paintAsphalt(tx, ty) {
     const n = hash(tx, ty);
-    if (n % 13 === 0) return '#726f68';
-    if (n % 9 === 0) return '#848078';
-    return '#7a7770';
+    if (n % 17 === 0) return '#343432';
+    if (n % 11 === 0) return '#4c4c48';
+    return '#3e3e3c';
   }
 
   function paintSidewalk(g, tx, ty, px, py) {
     const slab = (((tx >> 1) + (ty >> 1)) & 1) === 0;
-    g.fillStyle = slab ? '#d5c8b4' : '#cbbda8';
+    g.fillStyle = slab ? '#d4cdc2' : '#c8c0b4';
     g.fillRect(px, py, TILE, TILE);
-    g.fillStyle = '#b3a492';
+    g.fillStyle = '#b7aea2';
     if ((tx & 1) === 0) g.fillRect(px, py, 1, TILE);
     if ((ty & 1) === 0) g.fillRect(px, py, TILE, 1);
     const n = hash(tx, ty);
@@ -828,16 +832,21 @@
     const roadS = ty < MAP - 1 && (tiles[i + MAP] === T_ROAD || tiles[i + MAP] === T_CAR);
     const roadW = tx > 0 && (tiles[i - 1] === T_ROAD || tiles[i - 1] === T_CAR);
     const roadE = tx < MAP - 1 && (tiles[i + 1] === T_ROAD || tiles[i + 1] === T_CAR);
-    g.fillStyle = '#8a8074';
+    g.fillStyle = '#6a645c';
     if (roadN) g.fillRect(px, py, TILE, 3);
     if (roadS) g.fillRect(px, py + TILE - 3, TILE, 3);
     if (roadW) g.fillRect(px, py, 3, TILE);
     if (roadE) g.fillRect(px + TILE - 3, py, 3, TILE);
-    g.fillStyle = '#3e3a34';
+    g.fillStyle = '#2a2824';
     if (roadN) g.fillRect(px, py, TILE, 1);
     if (roadS) g.fillRect(px, py + TILE - 1, TILE, 1);
     if (roadW) g.fillRect(px, py, 1, TILE);
     if (roadE) g.fillRect(px + TILE - 1, py, 1, TILE);
+    g.fillStyle = '#eeeae4';
+    if (roadN) g.fillRect(px, py + 2, TILE, 1);
+    if (roadS) g.fillRect(px, py + TILE - 3, TILE, 1);
+    if (roadW) g.fillRect(px + 2, py, 1, TILE);
+    if (roadE) g.fillRect(px + TILE - 3, py, 1, TILE);
   }
 
   function onCrosswalk(mx, my) {
@@ -849,33 +858,78 @@
     return false;
   }
 
+  const ROAD_FONT = {
+    A: '01110 10001 11111 10001 10001',
+    B: '11110 10001 11110 10001 11110',
+    C: '01111 10000 10000 10000 01111',
+    D: '11110 10001 10001 10001 11110',
+    E: '11111 10000 11110 10000 11111',
+    G: '01111 10000 10111 10001 01110',
+    I: '11111 00100 00100 00100 11111',
+    K: '10001 10010 11100 10010 10001',
+    L: '10000 10000 10000 10000 11111',
+    N: '10001 11001 10101 10011 10001',
+    O: '01110 10001 10001 10001 01110',
+    P: '11110 10001 11110 10000 10000',
+    R: '11110 10001 11110 10010 10001',
+    S: '01111 10000 01110 00001 11110',
+    T: '11111 00100 00100 00100 00100',
+    U: '10001 10001 10001 10001 01110',
+    W: '10001 10001 10101 11011 10001',
+    Y: '10001 01010 00100 00100 00100',
+  };
+
+  function paintPixelWord(g, word, x, y, color, rot) {
+    g.save();
+    g.translate(x, y);
+    if (rot) g.rotate(rot);
+    g.fillStyle = color;
+    let pen = 0;
+    const gw = 2;
+    for (let i = 0; i < word.length; i++) {
+      const ch = word[i];
+      if (ch === ' ') {
+        pen += 6;
+        continue;
+      }
+      const rows = (ROAD_FONT[ch] || '00000 00000 00000 00000 00000').split(' ');
+      for (let r = 0; r < rows.length; r++) {
+        for (let c = 0; c < rows[r].length; c++) {
+          if (rows[r][c] === '1') g.fillRect(pen + c * gw, r * gw, gw, gw);
+        }
+      }
+      pen += 6 * gw;
+    }
+    g.restore();
+  }
+
   function paintRoadWords(g) {
     const blocks = (MAP / PERIOD) | 0;
     const words = ['BUS STOP', 'SLOW', 'STOP', 'KEEP CLEAR', 'NO PARKING', 'YIELD'];
-    g.font = '700 12px Courier New, monospace';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
     for (let by = 0; by < blocks; by++) {
       for (let bx = 0; bx < blocks; bx++) {
         const word = words[hash(bx + 2, by + 5) % words.length];
-        const hx = (bx * PERIOD + 11) * TILE + 8;
-        const hy = (by * PERIOD + 4) * TILE + 8;
-        g.save();
-        g.translate(hx, hy);
-        g.fillStyle = word === 'BUS STOP' ? 'rgba(240, 210, 74, 0.92)' : 'rgba(247, 244, 238, 0.9)';
-        g.fillText(word, 0, 0);
-        g.restore();
+        const hx = (bx * PERIOD + 10) * TILE + 4;
+        const hy = (by * PERIOD + 2) * TILE + 2;
+        paintPixelWord(g, word, hx, hy, word === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', 0);
         const vertWord = words[hash(bx + 8, by + 1) % words.length];
-        const vx = (bx * PERIOD + 4) * TILE + 8;
-        const vy = (by * PERIOD + 11) * TILE + 8;
-        g.save();
-        g.translate(vx, vy);
-        g.rotate(-Math.PI / 2);
-        g.fillStyle = vertWord === 'BUS STOP' ? 'rgba(240, 210, 74, 0.92)' : 'rgba(247, 244, 238, 0.9)';
-        g.fillText(vertWord, 0, 0);
-        g.restore();
+        const vx = (bx * PERIOD + 2) * TILE + 2;
+        const vy = (by * PERIOD + 12) * TILE + 4;
+        paintPixelWord(g, vertWord, vx, vy, vertWord === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', -Math.PI / 2);
       }
     }
+  }
+
+  function paintLaneArrow(g, x, y, dir) {
+    g.save();
+    g.translate(x + 8, y + 8);
+    g.rotate(dir * Math.PI / 2);
+    g.fillStyle = '#f4f1ea';
+    g.fillRect(-6, -1, 8, 3);
+    g.fillRect(1, -3, 3, 7);
+    g.fillRect(3, -2, 3, 5);
+    g.fillRect(5, -1, 2, 3);
+    g.restore();
   }
 
   function paintMap() {
@@ -895,7 +949,7 @@
         const vert = mx < TW;
         const horiz = my < TW;
         if (type === T_CAR && !vert && !horiz) {
-          g.fillStyle = '#6a675f';
+          g.fillStyle = '#4a4a46';
           g.fillRect(px, py, TILE, TILE);
           if ((tx % 3) === 0) {
             g.fillStyle = '#f4f1ea';
@@ -906,11 +960,11 @@
           g.fillRect(px, py, TILE, TILE);
           const speck = hash(tx, ty);
           if (speck % 5 === 0) {
-            g.fillStyle = '#65625b';
+            g.fillStyle = '#2e2e2c';
             g.fillRect(px + (speck % 11), py + (hash(ty + 2, tx) % 11), 2, 2);
           }
           if (speck % 8 === 1) {
-            g.fillStyle = '#8a867e';
+            g.fillStyle = '#52524e';
             g.fillRect(px + 4, py + 11, 3, 1);
           }
         } else if (type === T_SIDE) {
@@ -935,7 +989,7 @@
             g.fillRect(px + 11, py + 9, 2, 4);
           }
         } else if (type === T_LOT) {
-          g.fillStyle = '#6a675f';
+          g.fillStyle = '#4a4a46';
           g.fillRect(px, py, TILE, TILE);
           if ((tx % 3) === 0) {
             g.fillStyle = '#f4f1ea';
@@ -976,11 +1030,11 @@
         const cross = onCrosswalk(mx, my);
         if (cross) {
           if (horiz && !vert) {
-            g.fillRect(px + 1, py, 5, TILE);
-            g.fillRect(px + 9, py, 5, TILE);
+            g.fillRect(px, py + 1, TILE, 4);
+            g.fillRect(px, py + 9, TILE, 4);
           } else if (vert && !horiz) {
-            g.fillRect(px, py + 1, TILE, 5);
-            g.fillRect(px, py + 9, TILE, 5);
+            g.fillRect(px + 1, py, 4, TILE);
+            g.fillRect(px + 9, py, 4, TILE);
           }
           continue;
         }
@@ -1009,6 +1063,18 @@
       }
     }
     paintRoadWords(g);
+    for (let ty = 0; ty < MAP; ty++) {
+      for (let tx = 0; tx < MAP; tx++) {
+        const mx = tx % PERIOD;
+        const my = ty % PERIOD;
+        const vert = mx < TW;
+        const horiz = my < TW;
+        if (vert === horiz || onCrosswalk(mx, my)) continue;
+        if (tiles[ty * MAP + tx] !== T_ROAD) continue;
+        if (horiz && my === 4 && mx % 8 === 5) paintLaneArrow(g, tx * TILE, ty * TILE, 0);
+        if (vert && mx === 4 && my % 8 === 5) paintLaneArrow(g, tx * TILE, ty * TILE, 1);
+      }
+    }
 
     manholes = [];
     puddles = [];
@@ -1302,37 +1368,31 @@
 
   function makeTreeSprite() {
     const c = document.createElement('canvas');
-    c.width = 42;
-    c.height = 54;
+    c.width = 48;
+    c.height = 56;
+    c.worldW = 24;
+    c.worldH = 28;
     const g = c.getContext('2d');
-    g.fillStyle = '#1c3816';
-    g.beginPath();
-    g.arc(24, 22, 14, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#2f5c28';
-    g.beginPath();
-    g.arc(17, 16, 13, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#3f7434';
-    g.beginPath();
-    g.arc(14, 13, 7, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#254a20';
-    g.beginPath();
-    g.arc(26, 18, 6, 0, Math.PI * 2);
-    g.fill();
+    function blob(x, y, w, h, fill) {
+      g.fillStyle = '#000';
+      g.fillRect(x - 2, y - 2, w + 4, h + 4);
+      g.fillStyle = fill;
+      g.fillRect(x, y, w, h);
+    }
+    blob(6, 4, 36, 28, '#16381c');
+    blob(10, 8, 24, 18, '#2f6a32');
+    blob(14, 6, 12, 10, '#6aaa48');
+    g.fillStyle = '#000';
+    g.fillRect(20, 30, 10, 24);
     g.fillStyle = '#5a3820';
-    g.fillRect(18, 26, 6, 24);
+    g.fillRect(22, 32, 6, 20);
     g.fillStyle = '#7a5434';
-    g.fillRect(18, 26, 2, 22);
+    g.fillRect(22, 32, 2, 16);
+    g.fillStyle = '#000';
+    g.fillRect(16, 50, 16, 6);
     g.fillStyle = '#3a2414';
-    g.fillRect(14, 47, 14, 6);
-    g.fillRect(16, 45, 4, 3);
-    g.fillRect(22, 46, 3, 2);
-    const hi = presentSprite(c);
-    hi.worldW = c.width;
-    hi.worldH = c.height;
-    return hi;
+    g.fillRect(18, 52, 12, 4);
+    return c;
   }
 
   function makeLampSprite() {
@@ -1711,11 +1771,22 @@
   const STAGE_H = 720;
 
   function resize() {
-    // Same desktop zoom as before: pixel 4, then /1.2 and /1.42. No phone size, no devicePixelRatio.
-    const pixel = 4 / 1.2 / 1.42;
-    const w = Math.floor(STAGE_W / pixel);
-    const h = Math.floor(STAGE_H / pixel);
-    drawScale = Math.max(1, Math.round(pixel));
+    const sw = Math.max(1, window.innerWidth || STAGE_W);
+    const sh = Math.max(1, window.innerHeight || STAGE_H);
+    const desktop = sw >= 1100;
+    let w;
+    let h;
+    if (desktop) {
+      // Same desktop zoom as before: pixel 4, then /1.2 and /1.42.
+      const pixel = 4 / 1.2 / 1.42;
+      w = Math.floor(STAGE_W / pixel);
+      h = Math.floor(STAGE_H / pixel);
+      drawScale = Math.max(1, Math.round(pixel));
+    } else {
+      drawScale = 2;
+      w = Math.max(160, Math.floor(sw / drawScale));
+      h = Math.max(160, Math.floor(sh / drawScale));
+    }
     const bw = w * drawScale;
     const bh = h * drawScale;
     if (canvas.width !== bw || canvas.height !== bh) {
@@ -1733,11 +1804,23 @@
     view.w = w;
     view.h = h;
     ctx.imageSmoothingEnabled = false;
-    const sw = Math.max(1, window.innerWidth || STAGE_W);
-    const sh = Math.max(1, window.innerHeight || STAGE_H);
-    const fit = Math.min(sw / STAGE_W, sh / STAGE_H);
-    const scale = fit >= 1 ? Math.max(1, Math.floor(fit)) : fit;
-    if (stage) stage.style.transform = 'scale(' + scale + ')';
+    if (!stage) return;
+    if (desktop) {
+      stage.style.width = '';
+      stage.style.height = '';
+      canvas.style.width = '';
+      canvas.style.height = '';
+      const fit = Math.min(sw / STAGE_W, sh / STAGE_H);
+      const scale = fit >= 1 ? Math.max(1, Math.floor(fit)) : fit;
+      stage.style.transform = 'scale(' + scale + ')';
+    } else {
+      stage.style.transform = 'none';
+      stage.style.width = sw + 'px';
+      stage.style.height = sh + 'px';
+      canvas.style.width = sw + 'px';
+      canvas.style.height = sh + 'px';
+    }
+    if (stickEl) stickEl.hidden = desktop;
   }
 
   function cameraTarget() {
@@ -1788,8 +1871,8 @@
   }
 
   function readMove() {
-    let x = (held.right ? 1 : 0) - (held.left ? 1 : 0);
-    let y = (held.down ? 1 : 0) - (held.up ? 1 : 0);
+    let x = (held.right ? 1 : 0) - (held.left ? 1 : 0) + stickX;
+    let y = (held.down ? 1 : 0) - (held.up ? 1 : 0) + stickY;
     const len = Math.hypot(x, y);
     if (len > 1) {
       x /= len;
@@ -4034,11 +4117,11 @@
     const sx = x - cam.x;
     const sy = y - cam.y;
     ctx.save();
-    ctx.translate(sx + 4, sy + 5);
+    ctx.translate(sx + 3, sy + 4);
     ctx.rotate(ang);
-    ctx.fillStyle = 'rgba(12, 10, 8, 0.48)';
+    ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
     ctx.beginPath();
-    ctx.ellipse(0, 0, dh * 0.42, dw * 0.36, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, dh * 0.34, dw * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     ctx.save();
@@ -4121,18 +4204,12 @@
   }
 
   function drawBuildShadow(pr) {
-    const img = blockShadowSprite();
     const fw = pr.fw;
     const fh = pr.fh;
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(
-      img,
-      pr.footX + fw * 0.05 - cam.x,
-      pr.footY + fh * 0.42 - cam.y,
-      fw + 168,
-      fh * 0.72 + 86
-    );
-    ctx.imageSmoothingEnabled = false;
+    const x0 = pr.footX - cam.x;
+    const y0 = pr.footY - cam.y;
+    ctx.fillStyle = 'rgba(8, 8, 10, 0.42)';
+    ctx.fillRect(x0 + 12, y0 + 16, fw + 8, fh + 10);
   }
 
   function drawBlock(pr) {
@@ -4140,29 +4217,11 @@
     const y0 = pr.footY - cam.y;
     const fw = pr.fw;
     const fh = pr.fh;
-    const wallH = pr.wallDrop || 42;
-    const depth = 12;
+    const drop = 28;
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#3a342e';
-    ctx.fillRect(x0 + fw - depth, y0 + 4, depth, fh - wallH);
-    ctx.fillStyle = '#2a2622';
-    ctx.fillRect(x0 + fw - depth, y0 + 4, 3, fh - wallH);
-    ctx.fillStyle = '#1c242c';
-    for (let yy = y0 + 16; yy < y0 + fh - wallH - 8; yy += 26) {
-      ctx.fillRect(x0 + fw - depth + 4, yy, 6, 10);
-      ctx.fillStyle = '#9aafba';
-      ctx.fillRect(x0 + fw - depth + 5, yy + 1, 4, 4);
-      ctx.fillStyle = '#1c242c';
-    }
-    if (pr.wallFront) ctx.drawImage(pr.wallFront, x0, y0 + fh - wallH, fw, wallH);
-    const rw = pr.roof.worldW || (fw + 16);
-    const rh = pr.roof.worldH || (fh + 16);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x0, y0, fw, fh - wallH + 8);
-    ctx.clip();
-    ctx.drawImage(pr.roof, x0 - 8, y0 - 8, rw, rh);
-    ctx.restore();
+    if (pr.wallSide) ctx.drawImage(pr.wallSide, x0 + fw - 2, y0 + 6, 16, fh + drop - 10);
+    if (pr.wallFront) ctx.drawImage(pr.wallFront, x0 - 2, y0 + fh - 4, fw + 4, drop);
+    ctx.drawImage(pr.roof, x0 - 4, y0 - 2, fw + 8, fh + 4);
   }
 
   function drawTraffic(car) {
@@ -4192,9 +4251,9 @@
         drawBuildShadow(pr);
       } else if (pr.kind === 'tree') {
         const pw = pr.w || pr.img.width;
-        const cx = Math.round(pr.x + pw / 2 - cam.x + 5);
-        const cy = Math.round(pr.sortY - cam.y + 1);
-        ctx.fillStyle = 'rgba(12, 10, 8, 0.38)';
+        const cx = Math.round(pr.x + pw / 2 - cam.x + 2);
+        const cy = Math.round(pr.sortY - cam.y);
+        ctx.fillStyle = 'rgba(8, 8, 10, 0.4)';
         ctx.beginPath();
         ctx.ellipse(cx, cy, pr.shadowW / 2, pr.shadowH / 2, 0.15, 0, Math.PI * 2);
         ctx.fill();
@@ -5452,6 +5511,44 @@
     const dir = CODE[e.code];
     if (dir) held[dir] = false;
   });
+
+  function applyStick(clientX, clientY) {
+    if (!stickEl) return;
+    const rect = stickEl.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.width / 2);
+    const dy = clientY - (rect.top + rect.height / 2);
+    const max = rect.width * 0.34;
+    stickX = max ? dx / max : 0;
+    stickY = max ? dy / max : 0;
+    const mag = Math.hypot(stickX, stickY);
+    if (mag > 1) {
+      stickX /= mag;
+      stickY /= mag;
+    }
+    if (stickKnob) {
+      const k = Math.min(1, mag || 0);
+      stickKnob.style.transform = 'translate(' + (dx / (mag || 1)) * max * k + 'px,' + (dy / (mag || 1)) * max * k + 'px)';
+    }
+  }
+
+  function clearStick() {
+    stickX = 0;
+    stickY = 0;
+    if (stickKnob) stickKnob.style.transform = 'translate(0,0)';
+  }
+
+  if (stickEl) {
+    stickEl.addEventListener('pointerdown', (e) => {
+      stickEl.setPointerCapture(e.pointerId);
+      applyStick(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    stickEl.addEventListener('pointermove', (e) => {
+      if (e.buttons || e.pressure > 0) applyStick(e.clientX, e.clientY);
+    });
+    stickEl.addEventListener('pointerup', clearStick);
+    stickEl.addEventListener('pointercancel', clearStick);
+  }
 
   window.addEventListener('blur', () => {
     held.up = held.down = held.left = held.right = false;
