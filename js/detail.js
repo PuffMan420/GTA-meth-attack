@@ -69,15 +69,16 @@
     c.worldW = big ? 26 : 16;
     c.worldH = big ? 38 : 27;
     const g = c.getContext('2d');
-    const f = frame % 6;
-    const swing = [0, 5, 9, 4, -2, -7][f];
-    const bob = [0, 1, 2, 1, 0, 1][f];
+    const f = frame % 8;
+    const swing = [0, 3, 7, 9, 4, -2, -7, -4][f];
+    const bob = [0, 0, 1, 2, 1, 0, 1, 2][f];
     const attack = pose === 'attack';
     const side = dir === 'side';
     const front = dir === 'down' || dir === 'se';
     const back = dir === 'up' || dir === 'ne';
     const y0 = (big ? 10 : 4) + bob;
     const ox = big ? 15 : 0;
+    const bulk = look.wide ? 4 : 0;
 
     function grad(x, y, w, h, a, b) {
       const grd = g.createLinearGradient(x, y, x + w * 0.2, y + h);
@@ -88,8 +89,8 @@
       g.fillRect(x, y, w, h);
     }
 
-    const legL = ox + 14 + (back ? swing * 0.3 : swing);
-    const legR = ox + 26 - (back ? swing * 0.3 : swing);
+    const legL = ox + 14 - bulk * 0.2 + (back ? swing * 0.3 : swing);
+    const legR = ox + 26 + bulk * 0.2 - (back ? swing * 0.3 : swing);
     grad(legL, y0 + 50, 8, 20, look.pantsHi, look.pantsDk);
     grad(legR, y0 + 50, 8, 18, look.pants, look.pantsDk);
     g.fillStyle = 'rgba(255,255,255,0.28)';
@@ -103,8 +104,8 @@
     g.fillRect(legL, y0 + 72, 11, 2);
     g.fillRect(legR, y0 + 70, 11, 2);
 
-    const torsoX = ox + (side ? 16 : 10);
-    const torsoW = side ? 18 : 28;
+    const torsoX = ox + (side ? 16 : 10) - (side ? 0 : bulk / 2);
+    const torsoW = (side ? 18 : 28) + (side ? Math.min(2, bulk) : bulk);
     grad(torsoX, y0 + 30, torsoW, 24, look.jacketHi, look.jacketDk);
     g.fillStyle = 'rgba(255,255,255,0.16)';
     g.fillRect(torsoX + 1, y0 + 31, 3, 16);
@@ -126,6 +127,16 @@
       g.fillStyle = '#fff';
       g.fillRect(torsoX + torsoW - 9, y0 + 35, 2, 2);
     }
+    if (look.coat) {
+      g.fillStyle = look.jacketDk;
+      g.fillRect(torsoX - 2, y0 + 46, torsoW + 4, 12);
+      g.fillStyle = look.jacketHi;
+      g.fillRect(torsoX, y0 + 47, 2, 8);
+    }
+    g.globalAlpha = 0.16;
+    g.fillStyle = '#140c18';
+    for (let seam = y0 + 34; seam < y0 + 50; seam += 4) g.fillRect(torsoX + 2, seam, Math.max(4, torsoW - 5), 1);
+    g.globalAlpha = 1;
 
     const reach = attack ? 10 : 0;
     const armOff = attack ? 0 : swing * 0.35;
@@ -157,6 +168,19 @@
       g.fillStyle = hat;
       g.fillRect(hx - 3, y0 + 8, hw + 6, 8);
       g.fillRect(hx - 1, y0 + 4, hw + 2, 6);
+    } else if (look.cap) {
+      g.fillStyle = look.hair;
+      g.fillRect(hx - 1, y0 + 12, hw + 2, 6);
+      const cap = g.createLinearGradient(hx - 2, y0 + 4, hx, y0 + 16);
+      cap.addColorStop(0, look.capHi || '#fff');
+      cap.addColorStop(1, look.cap);
+      g.fillStyle = cap;
+      g.fillRect(hx - 3, y0 + 6, hw + 6, 8);
+      g.fillStyle = 'rgba(255,255,255,0.55)';
+      g.fillRect(hx, y0 + 7, 5, 2);
+    } else if (look.bald) {
+      g.fillStyle = look.skinHi;
+      g.fillRect(hx + 2, y0 + 10, hw - 4, 4);
     } else if (look.mohawk) {
       const moh = g.createLinearGradient(hx, y0, hx + 8, y0 + 16);
       moh.addColorStop(0, '#ffd0e4');
@@ -172,6 +196,13 @@
       g.fillRect(hx - 1, y0 + 6, hw + 2, 12);
       g.fillStyle = look.hairHi;
       g.fillRect(hx + 2, y0 + 7, 4, 2);
+      if (look.longHair) {
+        g.fillStyle = look.hair;
+        g.fillRect(hx - 2, y0 + 16, 4, 18);
+        g.fillRect(hx + hw - 2, y0 + 16, 4, 18);
+        g.fillStyle = look.hairHi;
+        g.fillRect(hx - 1, y0 + 18, 2, 6);
+      }
     }
 
     if (!back || dir === 'ne') {
@@ -201,6 +232,10 @@
         }
         g.fillStyle = look.mouth || '#c4847c';
         g.fillRect(hx + 6 + shift, y0 + 27, 8, 2);
+        if (look.beard) {
+          g.fillStyle = look.hair;
+          g.fillRect(hx + 4 + shift, y0 + 26, 12, 5);
+        }
       }
     }
 
@@ -253,7 +288,7 @@
       const dir = dirs[d];
       walk[dir] = [];
       attack[dir] = [];
-      for (let f = 0; f < 6; f++) walk[dir].push(paintPerson(dir, f, look, 'walk', big));
+      for (let f = 0; f < 8; f++) walk[dir].push(paintPerson(dir, f, look, 'walk', big));
       for (let f = 0; f < 2; f++) attack[dir].push(paintPerson(dir, f, look, 'attack', big));
     }
     return { walk: walk, attack: attack };
@@ -471,6 +506,40 @@
       pants: '#2a3348', pantsHi: '#5a6a8a', pantsDk: '#161c2a',
       shoe: '#1a1420', eye: '#140c18',
     },
+    civ2: {
+      skin: '#f0c8b0', skinHi: '#ffe8dc', skinDk: '#c48a72',
+      hair: '#6a4030', hairHi: '#e0b090',
+      jacket: '#2a3a62', jacketHi: '#7a90c8', jacketDk: '#141c38',
+      shirtHi: '#f4f1ea', shirtDk: '#c8c4d4',
+      pants: '#1c1a24', pantsHi: '#4a4658', pantsDk: '#101018',
+      shoe: '#141018', eye: '#140c18', wide: true, coat: true,
+    },
+    civ3: {
+      skin: '#8a5a3c', skinHi: '#c48a62', skinDk: '#5a3824',
+      hair: '#1a100c', hairHi: '#4a3020',
+      cap: '#e23b4a', capHi: '#ffb0b4',
+      jacket: '#1f8a4c', jacketHi: '#7ad89a', jacketDk: '#0e4a28',
+      shirtHi: '#fff6c8', shirtDk: '#e6c14a',
+      pants: '#3a342c', pantsHi: '#8a7a62', pantsDk: '#241c14',
+      shoe: '#1a1420', eye: '#140c18', beard: true,
+    },
+    civ4: {
+      skin: '#f6d2b4', skinHi: '#fff0e4', skinDk: '#d09a78',
+      hair: '#1a1028', hairHi: '#a888d0',
+      jacket: '#ff4d8d', jacketHi: '#ffb0d0', jacketDk: '#a01848',
+      shirtHi: '#ffffff', shirtDk: '#e7c6ff',
+      pants: '#2a1848', pantsHi: '#6a48a0', pantsDk: '#140818',
+      shoe: '#141018', eye: '#140c18', longHair: true,
+    },
+    civ5: {
+      skin: '#d8a07a', skinHi: '#ffd2b0', skinDk: '#a06848',
+      hair: '#c8c4d0', hairHi: '#f4f1ea',
+      bald: true,
+      jacket: '#6a6458', jacketHi: '#b8b0a4', jacketDk: '#3a342c',
+      shirtHi: '#5ce1e6', shirtDk: '#1a6a78',
+      pants: '#243048', pantsHi: '#4a6288', pantsDk: '#141c2c',
+      shoe: '#1a1420', eye: '#140c18', wide: true,
+    },
     boss: {
       skin: '#f2c19a', skinHi: '#ffe7d2', skinDk: '#c48462',
       hair: '#1a1020', hairHi: '#6a5088',
@@ -481,10 +550,75 @@
     },
   };
 
+  function paintProp(kind) {
+    const c = document.createElement('canvas');
+    const g = c.getContext('2d');
+    if (kind === 'bin') {
+      c.width = 30;
+      c.height = 42;
+      c.worldW = 10;
+      c.worldH = 14;
+      const grd = g.createLinearGradient(0, 0, 30, 42);
+      grd.addColorStop(0, '#6a8a58');
+      grd.addColorStop(1, '#243018');
+      g.fillStyle = grd;
+      g.fillRect(4, 8, 22, 28);
+      g.fillStyle = '#8aaa70';
+      g.fillRect(6, 10, 4, 18);
+      g.fillStyle = '#1a2414';
+      g.fillRect(4, 6, 22, 4);
+      g.fillStyle = '#c8d0b0';
+      g.fillRect(8, 18, 8, 6);
+      g.fillStyle = '#3a2818';
+      g.fillRect(10, 20, 4, 2);
+    } else if (kind === 'hydrant') {
+      c.width = 24;
+      c.height = 42;
+      c.worldW = 8;
+      c.worldH = 14;
+      g.fillStyle = '#8a1828';
+      g.fillRect(8, 34, 8, 6);
+      const grd = g.createLinearGradient(0, 0, 24, 42);
+      grd.addColorStop(0, '#ff8aa0');
+      grd.addColorStop(0.4, '#e23b4a');
+      grd.addColorStop(1, '#8a1828');
+      g.fillStyle = grd;
+      g.fillRect(6, 10, 12, 26);
+      g.fillStyle = '#ffd0d8';
+      g.fillRect(8, 12, 3, 10);
+      g.fillStyle = '#c8d0d8';
+      g.fillRect(2, 16, 6, 4);
+      g.fillRect(16, 16, 6, 4);
+      g.fillStyle = '#f4f1ea';
+      g.fillRect(8, 6, 8, 6);
+      g.fillStyle = '#ffe14a';
+      g.fillRect(10, 2, 4, 5);
+    } else {
+      c.width = 24;
+      c.height = 30;
+      c.worldW = 8;
+      c.worldH = 10;
+      g.fillStyle = '#ff8a3d';
+      g.beginPath();
+      g.moveTo(12, 2);
+      g.lineTo(22, 26);
+      g.lineTo(2, 26);
+      g.closePath();
+      g.fill();
+      g.fillStyle = '#fff6c8';
+      g.fillRect(7, 12, 10, 4);
+      g.fillStyle = '#1a1420';
+      g.fillRect(4, 26, 16, 3);
+      g.fillStyle = 'rgba(255,255,255,0.7)';
+      g.fillRect(10, 6, 2, 4);
+    }
+    return outline(c, 1);
+  }
+
   function build() {
     const cast = {};
     const flash = {};
-    const names = ['player', 'zombie', 'alfa', 'cop', 'dealer', 'civ'];
+    const names = ['player', 'zombie', 'alfa', 'cop', 'dealer', 'civ', 'civ2', 'civ3', 'civ4', 'civ5'];
     for (let i = 0; i < names.length; i++) {
       cast[names[i]] = pack(LOOKS[names[i]], false);
       flash[names[i]] = flashPack(cast[names[i]]);
@@ -504,6 +638,9 @@
       speaker: weapons.speaker,
       bottle: weapons.bottle,
       bag: weapons.bag,
+      bin: paintProp('bin'),
+      hydrant: paintProp('hydrant'),
+      cone: paintProp('cone'),
     };
   }
 
