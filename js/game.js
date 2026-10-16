@@ -1999,13 +1999,16 @@
     const sw = Math.max(1, window.innerWidth || STAGE_W);
     const sh = Math.max(1, window.innerHeight || STAGE_H);
     const desktop = sw >= 1100;
-    // Paint into at most 1280x720, then CSS-scale that bitmap to the window.
-    // devicePixelRatio is ignored so a retina fullscreen does not render 4x pixels.
-    // Zoom still follows the window height, so characters keep their share of the screen.
+    // The game box is 88% of the window, centered, with the page black around it.
+    // Paint into at most 1280x720 and CSS-scale that bitmap to the box.
+    // devicePixelRatio is ignored. Aspect matches the window, so the picture is not stretched.
     const pixel = 4 / 1.2 / 1.42;
-    const fit = Math.min(1, STAGE_W / sw, STAGE_H / sh);
-    const bw = Math.max(1, Math.round(sw * fit));
-    const bh = Math.max(1, Math.round(sh * fit));
+    const box = 0.88;
+    const boxW = Math.max(1, Math.round(sw * box));
+    const boxH = Math.max(1, Math.round(sh * box));
+    const fit = Math.min(1, STAGE_W / boxW, STAGE_H / boxH);
+    const bw = Math.max(1, Math.round(boxW * fit));
+    const bh = Math.max(1, Math.round(boxH * fit));
     drawScale = pixel * (bh / STAGE_H);
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw;
@@ -2024,11 +2027,11 @@
     ctx.imageSmoothingEnabled = false;
     if (stage) {
       stage.style.transform = 'none';
-      stage.style.width = sw + 'px';
-      stage.style.height = sh + 'px';
+      stage.style.width = boxW + 'px';
+      stage.style.height = boxH + 'px';
     }
-    canvas.style.width = sw + 'px';
-    canvas.style.height = sh + 'px';
+    canvas.style.width = boxW + 'px';
+    canvas.style.height = boxH + 'px';
     if (stickEl) stickEl.hidden = desktop;
   }
 
