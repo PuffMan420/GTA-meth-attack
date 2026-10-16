@@ -15,8 +15,10 @@
     var c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
-    // A little larger than a third of a car (about 18%). The painting includes its own shadow.
-    c.worldH = (CAR_LEN / 3) * 1.18;
+    // Same visible height as a normal person. Their sprite is 22 world px on a
+    // 48px canvas, and the painted body fills 46 of those rows. This picture
+    // is opaque edge to edge, so its world height is that visible span.
+    c.worldH = 22 * (46 / 48);
     c.worldW = c.worldH * (img.width / img.height);
     c.hand = true;
     var g = c.getContext('2d');
