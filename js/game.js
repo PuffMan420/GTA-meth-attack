@@ -2419,16 +2419,24 @@
     flashes.push({ x: x, y: y, ang: ang, color: color, life: 0.07, max: 0.07 });
   }
 
+  function playerBodyScale() {
+    const book = window.GTAPlayer && window.GTAPlayer.idle;
+    const frame = book && book[0];
+    if (!frame || !frame.worldH) return 1;
+    return frame.worldH / (48 / 3);
+  }
+
   function pistolPoint() {
     const hero = window.GTAPlayer && window.GTAPlayer.ready && window.GTAPlayer.frame(player, globalTime);
     const dw = (hero && hero.worldW) || 20;
     const dh = (hero && hero.worldH) || 30;
-    const foot = 2;
+    const s = playerBodyScale();
+    const foot = 2 * s;
     let lx = -dw / 2;
     const ly = -dh + foot + (30 / 60) * dh;
     const faceRight = player.facing > 0;
     if (faceRight) lx = -lx;
-    const out = faceRight ? 2 : -2;
+    const out = (faceRight ? 2 : -2) * s;
     return { x: player.x + lx + out, y: player.y + ly };
   }
 
@@ -2483,8 +2491,8 @@
       if (flashes.length > 28) flashes.shift();
       const a = (i / 4) * Math.PI * 2 + 0.6;
       flashes.push({
-        x: player.x + Math.cos(a) * 12,
-        y: player.y - 10 + Math.sin(a) * 8,
+        x: player.x + Math.cos(a) * 12 * playerBodyScale(),
+        y: player.y - 10 * playerBodyScale() + Math.sin(a) * 8 * playerBodyScale(),
         ang: a,
         color: '#5ce1e6',
         life: 0.22,
@@ -2947,7 +2955,7 @@
           shots.push({
             kind: 'crystal',
             x: player.x,
-            y: player.y - 2,
+            y: player.y - 2 * playerBodyScale(),
             vx: Math.cos(ang) * 300,
             vy: Math.sin(ang) * 300,
             life: 0.75,
@@ -3039,7 +3047,7 @@
           shots.push({
             kind: 'bottle',
             x: player.x,
-            y: player.y - 2,
+            y: player.y - 2 * playerBodyScale(),
             vx: Math.cos(ang) * 210,
             vy: Math.sin(ang) * 210,
             life: 0.55,
@@ -3619,8 +3627,8 @@
     if (ent === player && player.iframe > 0 && ((globalTime * 24) | 0) % 2 === 0) return;
     const img = actorFrame(ent);
     if (!img) return;
-    const foot = 2;
     const gubbeEarly = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
+    const foot = gubbeEarly ? 2 * playerBodyScale() : 2;
     const breath = (!ent.moving && !(ent === player && player.moving) && !reduceMotion) ? (((globalTime * 2) | 0) % 2) * -1 : 0;
     const hop = gubbeEarly && window.GTAPlayer.bob && !reduceMotion
       ? window.GTAPlayer.bob(player, globalTime)
@@ -3688,12 +3696,13 @@
     const hx = -dw / 2 + (10 / 40) * dw;
     const hy = -dh + foot + (28 / 60) * dh;
     const t = player.swing > 0 ? player.swing / (player.swingMax || 0.42) : 0;
+    const s = playerBodyScale();
     let ox = 0;
-    let oy = Math.round(Math.sin(globalTime * 5));
-    if (kind === 'crystal' && t > 0) ox = Math.round(t * 3);
-    else if (kind === 'bottle' && t > 0) ox = Math.round(-6 * (1 - t) + 3 * t);
-    else if (kind === 'bass' && t > 0) oy = Math.round(Math.sin((1 - t) * Math.PI * 2) * 2);
-    else if (kind === 'carts') ox = Math.round(Math.sin(globalTime * 7) * 2);
+    let oy = Math.round(Math.sin(globalTime * 5) * s);
+    if (kind === 'crystal' && t > 0) ox = Math.round(t * 3 * s);
+    else if (kind === 'bottle' && t > 0) ox = Math.round((-6 * (1 - t) + 3 * t) * s);
+    else if (kind === 'bass' && t > 0) oy = Math.round(Math.sin((1 - t) * Math.PI * 2) * 2 * s);
+    else if (kind === 'carts') ox = Math.round(Math.sin(globalTime * 7) * 2 * s);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(wimg, Math.round(hx + ox - ww / 2), Math.round(hy + oy - wh / 2), ww, wh);
   }
@@ -5503,7 +5512,7 @@
       level: 1,
       xp: 0,
       next: xpFor(1),
-      radius: 6,
+      radius: 6 * playerBodyScale(),
       facing: 1,
       moving: false,
       iframe: 0,
