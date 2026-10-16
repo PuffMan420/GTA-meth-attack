@@ -1294,7 +1294,14 @@
   function makeBuildingSprite(fw, fh, pal, seed) {
     const pack = window.GTAHand && window.GTAHand.buildings;
     if (pack && pack.length) {
-      const spec = pack[Math.abs(seed) % pack.length];
+      let idx = Math.abs(seed) % pack.length;
+      // This map's block hash never lands on the police slot, so a repeated
+      // hospital uses that facade instead. Hospitals still appear elsewhere.
+      if (pack[idx] && pack[idx].name === 'hus_sjukhus' && (seed % 3) === 0) {
+        const police = pack.findIndex((b) => b.name === 'hus_polis');
+        if (police >= 0) idx = police;
+      }
+      const spec = pack[idx];
       const img = spec.img;
       img.hand = true;
       return {
@@ -4313,18 +4320,33 @@
     ctx.globalAlpha = 1;
   }
 
+  function fillTiled(img, x, y, w, h, anchorX, anchorY) {
+    const tileW = img.tileW || w;
+    const tileH = img.tileH || h;
+    const pattern = ctx.createPattern(img, 'repeat');
+    if (!pattern) return;
+    const sx = tileW / img.width;
+    const sy = tileH / img.height;
+    pattern.setTransform(new DOMMatrix([sx, 0, 0, sy, anchorX, anchorY]));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = pattern;
+    ctx.fillRect(x, y, w, h);
+  }
+
   function drawWallFace(x0, y0, x1, y1, ox, oy, img) {
     const ax = x0 - cam.x;
     const ay = y0 - cam.y;
     const bx = x1 - cam.x;
     const by = y1 - cam.y;
-    const w = img.width;
-    const h = img.height;
+    const edge = Math.hypot(bx - ax, by - ay) || 1;
+    const rise = Math.hypot(ox, oy) || 1;
     ctx.save();
-    ctx.transform((bx - ax) / w, (by - ay) / w, ox / h, oy / h, ax, ay);
-    ctx.imageSmoothingEnabled = !!img.hand;
-    if (img.hand) ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0);
+    ctx.transform((bx - ax) / edge, (by - ay) / edge, ox / rise, oy / rise, ax, ay);
+    ctx.beginPath();
+    ctx.rect(0, 0, edge, rise);
+    ctx.clip();
+    fillTiled(img, 0, 0, edge, rise, 0, 0);
     ctx.restore();
   }
 
@@ -4408,9 +4430,12 @@
       const img = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
       if (img) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, img);
     }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(pr.roof, rx - cam.x, ry - cam.y, roofW, roofH);
+    const roof = pr.roof;
+    const tileW = (roof && roof.tileW) || roofW;
+    const tileH = (roof && roof.tileH) || roofH;
+    const roofX = rx - cam.x;
+    const roofY = ry - cam.y;
+    fillTiled(roof, roofX, roofY, roofW, roofH, roofX + (roofW - tileW) / 2, roofY + (roofH - tileH) / 2);
     ctx.restore();
   }
 

@@ -14,23 +14,34 @@
     'ambulans1',
   ];
   var buildingNames = [
-    'hus_tegeltak1',
-    'hus_tegel_lagenheter1',
-    'hus_horn_affar1',
-    'hus_kontor_skrapa1',
-    'hus_lagerlokal1',
-    'hus_nattklubb1',
-    'hus_mack1',
+    'hus_tegeltak',
+    'hus_lagenheter',
+    'hus_horn_affar',
+    'hus_kontor_skrapa',
+    'hus_lagerlokal',
+    'hus_nattklubb',
+    'hus_mack',
+    'hus_sjukhus',
+    'hus_polis',
+    'hus_parkeringshus',
   ];
   var buildingStyle = {
-    hus_tegeltak1: { lean: 0.34, roof: 0.55 },
-    hus_tegel_lagenheter1: { lean: 0.48, roof: 0.38 },
-    hus_horn_affar1: { lean: 0.4, roof: 0.42 },
-    hus_kontor_skrapa1: { lean: 0.64, roof: 0.22 },
-    hus_lagerlokal1: { lean: 0.36, roof: 0.48 },
-    hus_nattklubb1: { lean: 0.56, roof: 0.3 },
-    hus_mack1: { lean: 0.3, roof: 0.5 },
+    hus_tegeltak: { lean: 0.34 },
+    hus_lagenheter: { lean: 0.48 },
+    hus_horn_affar: { lean: 0.4 },
+    hus_kontor_skrapa: { lean: 0.64 },
+    hus_lagerlokal: { lean: 0.36 },
+    hus_nattklubb: { lean: 0.56 },
+    hus_mack: { lean: 0.3 },
+    hus_sjukhus: { lean: 0.52 },
+    hus_polis: { lean: 0.32 },
+    hus_parkeringshus: { lean: 0.46 },
   };
+  // One facade tile is this many world units wide. Height follows the image
+  // so windows stay the same size on a shop and a tower.
+  var WALL_WORLD = 88;
+  // Long side of one roof tile, in world units. Same size on every block.
+  var ROOF_WORLD = 192;
 
   function load(src) {
     return new Promise(function (ok, bad) {
@@ -41,13 +52,37 @@
     });
   }
 
-  function crop(img, sy, sh) {
+  // Facade art has the door at the bottom. Wall y=0 is the ground edge.
+  function flipGround(img) {
     var c = document.createElement('canvas');
     c.width = img.width;
-    c.height = Math.max(1, sh);
+    c.height = img.height;
     c.hand = true;
     var g = c.getContext('2d');
-    g.drawImage(img, 0, sy, img.width, sh, 0, 0, img.width, c.height);
+    g.translate(0, img.height);
+    g.scale(1, -1);
+    g.drawImage(img, 0, 0);
+    return c;
+  }
+
+  function prepWall(img) {
+    var c = flipGround(img);
+    c.tileW = WALL_WORLD;
+    c.tileH = WALL_WORLD * (img.height / img.width);
+    return c;
+  }
+
+  function prepRoof(img) {
+    var c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    c.hand = true;
+    var g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    var longSide = Math.max(img.width, img.height);
+    var scale = ROOF_WORLD / longSide;
+    c.tileW = img.width * scale;
+    c.tileH = img.height * scale;
     return c;
   }
 
@@ -56,6 +91,8 @@
     c.width = src.width;
     c.height = src.height;
     c.hand = true;
+    c.tileW = src.tileW;
+    c.tileH = src.tileH;
     var g = c.getContext('2d');
     g.drawImage(src, 0, 0);
     g.globalCompositeOperation = 'source-atop';
@@ -95,24 +132,25 @@
       }));
     })(carNames[i]);
   }
+  var buildingSlots = new Array(buildingNames.length);
   for (i = 0; i < buildingNames.length; i++) {
-    (function (name) {
-      jobs.push(load('assets/sprites/' + name + '.png').then(function (img) {
-        img.hand = true;
-        var style = buildingStyle[name] || { lean: 0.4, roof: 0.45 };
-        var roofH = Math.max(8, Math.round(img.height * style.roof));
-        var wallY = Math.round(img.height * Math.min(0.7, style.roof * 0.82));
-        var wall = crop(img, wallY, img.height - wallY);
-        window.GTAHand.buildings.push({
+    (function (name, index) {
+      jobs.push(Promise.all([
+        load('assets/sprites/' + name + '_tak.png'),
+        load('assets/sprites/' + name + '_vagg.png'),
+      ]).then(function (pair) {
+        var roof = prepRoof(pair[0]);
+        var wall = prepWall(pair[1]);
+        buildingSlots[index] = {
           name: name,
-          img: img,
-          roof: crop(img, 0, roofH),
+          img: roof,
+          roof: roof,
           wallFront: wall,
           wallSide: shadeWall(wall),
-          lean: style.lean,
-        });
+          lean: (buildingStyle[name] || { lean: 0.4 }).lean,
+        };
       }));
-    })(buildingNames[i]);
+    })(buildingNames[i], i);
   }
   jobs.push(load('assets/sprites/rund_trad1.png').then(function (img) {
     var worldH = TREE_H;
@@ -121,6 +159,7 @@
   }));
 
   window.GTAHand.loaded = Promise.all(jobs).then(function () {
+    window.GTAHand.buildings = buildingSlots;
     window.GTAHand.ready = true;
   }).catch(function () {
     window.GTAHand.ready = false;
