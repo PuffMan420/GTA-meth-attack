@@ -1,6 +1,6 @@
-/* Player sprites: idle, walk, and run cut from the 60x90 gubbe. */
+/* The player is the hand-painted gubbe. One sprite, with a bob for idle, walk, and run. */
 (function () {
-  var base = 'assets/sprites/player/';
+  var CAR_LEN = 48;
 
   function load(src) {
     return new Promise(function (ok, bad) {
@@ -15,10 +15,11 @@
     var c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
-    c.worldW = img.width / 2;
-    c.worldH = img.height / 2;
+    // About a third of a car's length. The painting includes its own shadow.
+    c.worldH = CAR_LEN / 3;
+    c.worldW = c.worldH * (img.width / img.height);
+    c.hand = true;
     var g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
     g.drawImage(img, 0, 0);
     return c;
   }
@@ -29,8 +30,8 @@
     o.height = c.height;
     o.worldW = c.worldW;
     o.worldH = c.worldH;
+    o.hand = true;
     var g = o.getContext('2d');
-    g.imageSmoothingEnabled = false;
     g.drawImage(c, 0, 0);
     g.globalCompositeOperation = 'source-atop';
     g.fillStyle = '#ffffff';
@@ -38,47 +39,32 @@
     return o;
   }
 
-  function loadSet(name, n) {
-    var jobs = [];
-    var i;
-    for (i = 1; i <= n; i++) jobs.push(load(base + name + '_' + i + '.png'));
-    return Promise.all(jobs).then(function (imgs) {
-      var frames = [];
-      var flashes = [];
-      var k;
-      for (k = 0; k < imgs.length; k++) {
-        frames.push(wrap(imgs[k]));
-        flashes.push(flashOf(frames[k]));
-      }
-      window.GTAPlayer[name] = frames;
-      window.GTAPlayer[name + 'Flash'] = flashes;
-    });
-  }
-
   window.GTAPlayer = { ready: false };
+
+  window.GTAPlayer.bob = function (ent, time) {
+    var spd = Math.hypot(ent.vx || 0, ent.vy || 0);
+    if (ent.moving && spd > 96) return Math.round(Math.sin(time * 18) * 2);
+    if (ent.moving && spd > 8) return Math.round(Math.sin(time * 10) * 1);
+    return Math.sin(time * 2.2) > 0 ? -1 : 0;
+  };
 
   window.GTAPlayer.frame = function (ent, time) {
     if (!window.GTAPlayer.ready) return null;
-    var spd = Math.hypot(ent.vx || 0, ent.vy || 0);
-    var set = 'idle';
-    var rate = 3;
-    if (ent.moving && spd > 96) {
-      set = 'run';
-      rate = 12;
-    } else if (ent.moving && spd > 8) {
-      set = 'walk';
-      rate = 8;
-    }
-    var book = ent.flash > 0 ? window.GTAPlayer[set + 'Flash'] : window.GTAPlayer[set];
+    var book = ent.flash > 0 ? window.GTAPlayer.flash : window.GTAPlayer.idle;
     if (!book || !book.length) return null;
-    return book[((time * rate) | 0) % book.length];
+    return book[0];
   };
 
-  Promise.all([
-    loadSet('idle', 4),
-    loadSet('walk', 8),
-    loadSet('run', 8),
-  ]).then(function () {
+  window.GTAPlayer.loaded = load('assets/sprites/gubbe_spelare.png').then(function (img) {
+    var frame = wrap(img);
+    var flash = flashOf(frame);
+    window.GTAPlayer.idle = [frame];
+    window.GTAPlayer.walk = [frame];
+    window.GTAPlayer.run = [frame];
+    window.GTAPlayer.flash = [flash];
+    window.GTAPlayer.idleFlash = [flash];
+    window.GTAPlayer.walkFlash = [flash];
+    window.GTAPlayer.runFlash = [flash];
     window.GTAPlayer.ready = true;
   }).catch(function () {
     window.GTAPlayer.ready = false;

@@ -808,10 +808,10 @@
   function paintAsphaltTile(g, tx, ty, x, y) {
     const S = TILE * ART;
     const n = hash(tx, ty);
-    const base = n % 17 === 0 ? '#343230' : n % 11 === 0 ? '#4a4844' : '#3c3c38';
+    const base = n % 17 === 0 ? '#2c3138' : n % 11 === 0 ? '#3c4450' : '#343a42';
     g.fillStyle = base;
     g.fillRect(x, y, S, S);
-    g.fillStyle = '#524e48';
+    g.fillStyle = '#4a5260';
     g.fillRect(x + (n % 18), y + 2, 3, 1);
     g.fillRect(x + ((n >> 4) % 20), y + 8, 2, 1);
     g.fillStyle = '#2a2824';
@@ -826,9 +826,9 @@
   function paintSidewalk(g, tx, ty, x, y) {
     const S = TILE * ART;
     const slab = (((tx >> 1) + (ty >> 1)) & 1) === 0;
-    g.fillStyle = slab ? '#d4cdc0' : '#c4baac';
+    g.fillStyle = slab ? '#c9ccc4' : '#b7bbb2';
     g.fillRect(x, y, S, S);
-    g.fillStyle = '#efe8dc';
+    g.fillStyle = '#e4e6e0';
     g.fillRect(x + 2, y + 2, S - 6, 3);
     g.fillRect(x + 2, y + 2, 3, S - 6);
     g.fillStyle = '#8e867a';
@@ -1292,6 +1292,30 @@
   }
 
   function makeBuildingSprite(fw, fh, pal, seed) {
+    const pack = window.GTAHand && window.GTAHand.buildings;
+    if (pack && pack.length) {
+      let idx = Math.abs(seed) % pack.length;
+      // This map's block hash never lands on the police slot, so a repeated
+      // hospital uses that facade instead. Hospitals still appear elsewhere.
+      if (pack[idx] && pack[idx].name === 'hus_sjukhus' && (seed % 3) === 0) {
+        const police = pack.findIndex((b) => b.name === 'hus_polis');
+        if (police >= 0) idx = police;
+      }
+      const spec = pack[idx];
+      const img = spec.img;
+      img.hand = true;
+      return {
+        canvas: img,
+        hand: true,
+        roof: spec.roof || img,
+        wallFront: spec.wallFront || img,
+        wallSide: spec.wallSide || spec.wallFront || img,
+        lean: spec.lean || 0.4,
+        lights: [],
+        eaves: 0,
+        neon: NEONS[seed % NEONS.length],
+      };
+    }
     if (window.GTACity) {
       const neon = NEONS[seed % NEONS.length];
       const roof = window.GTACity.paintRoof(fw, fh, pal, seed);
@@ -1403,6 +1427,7 @@
   }
 
   function makeTreeSprite() {
+    if (window.GTAHand && window.GTAHand.tree) return window.GTAHand.tree;
     const c = document.createElement('canvas');
     c.width = 48;
     c.height = 56;
@@ -1528,7 +1553,17 @@
     return c;
   }
 
+  function handCarName(n) {
+    const names = window.GTAHand && window.GTAHand.ready && window.GTAHand.carNames;
+    if (names && names.length) return names[Math.abs(n) % names.length];
+    const models = (window.GTACity && window.GTACity.models) || ['sedan'];
+    return models[Math.abs(n) % models.length];
+  }
+
   function vehicleSprite(model, color) {
+    if (window.GTAHand && window.GTAHand.cars && window.GTAHand.cars[model]) {
+      return window.GTAHand.cars[model];
+    }
     const key = model + '|' + (color || '');
     if (!carCache[key]) {
       carCache[key] = window.GTACity
@@ -1604,6 +1639,46 @@
           const left = x0 - built.eaves;
           const wallH = 42;
           const sortY = y0 - 10;
+          if (built.hand) {
+            const lotX = (bx * PERIOD + TW) * TILE;
+            const lotY = (by * PERIOD + TW) * TILE;
+            const lot = (PERIOD - TW) * TILE;
+            const tx0 = (lotX / TILE) | 0;
+            const ty0 = (lotY / TILE) | 0;
+            const tx1 = ((lotX + lot) / TILE) | 0;
+            const ty1 = ((lotY + lot) / TILE) | 0;
+            for (let sy = ty0; sy < ty1; sy++) {
+              for (let sx = tx0; sx < tx1; sx++) {
+                if (sx < 0 || sy < 0 || sx >= MAP || sy >= MAP) continue;
+                const id = sy * MAP + sx;
+                if (tiles[id] === T_ROAD || tiles[id] === T_CAR) continue;
+                solid[id] = 1;
+              }
+            }
+            props.push({
+              img: built.roof,
+              roof: built.roof,
+              wallFront: built.wallFront,
+              wallSide: built.wallSide,
+              lean: built.lean,
+              w: lot,
+              h: lot,
+              x: lotX,
+              sortY: lotY + lot,
+              shadowW: 0,
+              shadowH: 0,
+              lights: [],
+              neon: built.neon,
+              kind: 'build',
+              hand: true,
+              footX: lotX,
+              footY: lotY,
+              fw: lot,
+              fh: lot,
+            });
+            addLamp(lotX + 12, lotY + lot - 4);
+            addLamp(lotX + lot - 12, lotY + lot - 4);
+          } else {
           for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
             for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
               if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
@@ -1642,6 +1717,7 @@
           });
           addLamp(x0 - 14, y0 + fh + 6);
           addLamp(x0 + fw + 2, y0 + fh + 6);
+          }
         } else if (kind === 0) {
           props.push({
             img: fountainSprite,
@@ -1688,13 +1764,12 @@
             anchorX = spot.x;
             anchorY = spot.y;
           }
-          const models = (window.GTACity && window.GTACity.models) || ['sedan'];
-          const model = models[hash(tx, ty) % models.length];
+          const model = handCarName(hash(tx, ty));
           const color = CAR_COLORS[hash(tx, ty) % CAR_COLORS.length];
           const img = vehicleSprite(model, color);
           let ang = horiz ? 0 : Math.PI / 2;
           if (hash(ty, tx) & 1) ang += Math.PI;
-          const carScale = 0.84;
+          const carScale = img.hand ? 1 : 0.84;
           const carW = (img.worldW || 36) * carScale;
           const carH = (img.worldH || 72) * carScale;
           props.push({
@@ -3346,6 +3421,16 @@
       drawVehicle(pr);
       return;
     }
+    if (pr.kind === 'build' && pr.hand && pr.roof && pr.wallFront) {
+      drawHandBlock(pr);
+      return;
+    }
+    if (pr.kind === 'tree' && pr.img && pr.img.hand) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(pr.img, pr.x - cam.x, pr.sortY - cam.y - pr.h, pr.w, pr.h);
+      return;
+    }
     if (pr.kind === 'build' && pr.roof) {
       drawBlock(pr);
       return;
@@ -3446,13 +3531,17 @@
     const img = actorFrame(ent);
     if (!img) return;
     const foot = 2;
+    const gubbeEarly = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
     const breath = (!ent.moving && !(ent === player && player.moving) && !reduceMotion) ? (((globalTime * 2) | 0) % 2) * -1 : 0;
-    drawShadow(ent.x, ent.y + 1, Math.max(4, ((ent.radius || 6) * 0.85) | 0));
+    const hop = gubbeEarly && window.GTAPlayer.bob && !reduceMotion
+      ? window.GTAPlayer.bob(player, globalTime)
+      : breath;
+    if (!gubbeEarly) drawShadow(ent.x, ent.y + 1, Math.max(4, ((ent.radius || 6) * 0.85) | 0));
     ctx.save();
     const dx = Math.round((ent.x - cam.x) * drawScale) / drawScale;
-    const dy = Math.round((ent.y - cam.y + breath) * drawScale) / drawScale;
+    const dy = Math.round((ent.y - cam.y + hop) * drawScale) / drawScale;
     ctx.translate(dx, dy);
-    const gubbe = ent === player && window.GTAPlayer && window.GTAPlayer.ready;
+    const gubbe = gubbeEarly;
     if (gubbe ? player.facing > 0 : (spr.cast ? ent.flip : ent.facing < 0)) ctx.scale(-1, 1);
     if ((ent.hit || 0) > 0 && !(ent.dying > 0)) {
       const k = Math.min(1, ent.hit / 0.16);
@@ -3494,7 +3583,8 @@
     }
     const dw = img.worldW || img.width;
     const dh = img.worldH || img.height;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = !!img.hand;
+    if (img.hand) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, -dw / 2, -dh + foot, dw, dh);
     if (ent === player) drawHeldWeapon(dw, dh, foot);
     ctx.restore();
@@ -3640,13 +3730,13 @@
       }
     }
     const step = Math.max(1, (lanes.length / 8) | 0);
-    const models = (window.GTACity && window.GTACity.models) || ['sedan'];
     for (let i = 0; i < 8 && lanes.length; i++) {
       const cell = lanes[(i * step) % lanes.length];
-      const model = models[i % models.length];
+      const model = handCarName(hash(i + 3, i * 5 + 1));
       const color = CAR_COLORS[(i * 3) % CAR_COLORS.length];
       const img = vehicleSprite(model, color);
       const ang = Math.atan2(cell.vy, cell.vx);
+      const carScale = img.hand ? 1 : 0.84;
       traffic.push({
         x: cell.x,
         y: cell.y,
@@ -3658,8 +3748,8 @@
         phase: i * 1.7,
         model: model,
         img: img,
-        spriteW: (img.worldW || 36) * 0.84,
-        spriteH: (img.worldH || 72) * 0.84,
+        spriteW: (img.worldW || 36) * carScale,
+        spriteH: (img.worldH || 72) * carScale,
         radius: 14,
         vel: 46 + (i % 4) * 6,
         cruise: 46 + (i % 4) * 6,
@@ -4172,17 +4262,26 @@
     const ang = spec.ang || 0;
     const sx = x - cam.x;
     const sy = y - cam.y;
-    ctx.save();
-    ctx.translate(sx + 2, sy + 3);
-    ctx.rotate(ang);
-    ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
-    ctx.fillRect(-dh * 0.32, -dw * 0.22, dh * 0.64, dw * 0.44);
-    ctx.restore();
+    const painted = spec.img && spec.img.hand;
+    if (!painted) {
+      ctx.save();
+      ctx.translate(sx + 2, sy + 3);
+      ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(8, 8, 10, 0.5)';
+      ctx.fillRect(-dh * 0.32, -dw * 0.22, dh * 0.64, dw * 0.44);
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(ang + Math.PI / 2);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = !!painted;
+    if (painted) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(spec.img, -dw / 2, -dh / 2, dw, dh);
+    if (painted) {
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      return;
+    }
     const steer = spec.steer || 0;
     if (steer) {
       ctx.save();
@@ -4221,17 +4320,33 @@
     ctx.globalAlpha = 1;
   }
 
+  function fillTiled(img, x, y, w, h, anchorX, anchorY) {
+    const tileW = img.tileW || w;
+    const tileH = img.tileH || h;
+    const pattern = ctx.createPattern(img, 'repeat');
+    if (!pattern) return;
+    const sx = tileW / img.width;
+    const sy = tileH / img.height;
+    pattern.setTransform(new DOMMatrix([sx, 0, 0, sy, anchorX, anchorY]));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = pattern;
+    ctx.fillRect(x, y, w, h);
+  }
+
   function drawWallFace(x0, y0, x1, y1, ox, oy, img) {
     const ax = x0 - cam.x;
     const ay = y0 - cam.y;
     const bx = x1 - cam.x;
     const by = y1 - cam.y;
-    const w = img.width;
-    const h = img.height;
+    const edge = Math.hypot(bx - ax, by - ay) || 1;
+    const rise = Math.hypot(ox, oy) || 1;
     ctx.save();
-    ctx.transform((bx - ax) / w, (by - ay) / w, ox / h, oy / h, ax, ay);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, 0, 0);
+    ctx.transform((bx - ax) / edge, (by - ay) / edge, ox / rise, oy / rise, ax, ay);
+    ctx.beginPath();
+    ctx.rect(0, 0, edge, rise);
+    ctx.clip();
+    fillTiled(img, 0, 0, edge, rise, 0, 0);
     ctx.restore();
   }
 
@@ -4264,6 +4379,64 @@
     const y0 = pr.footY - cam.y;
     ctx.fillStyle = 'rgba(8, 8, 10, 0.42)';
     ctx.fillRect(x0 + 12, y0 + 16, fw + 8, fh + 10);
+  }
+
+  function drawHandBlock(pr) {
+    const cx = cam.x + view.w / 2;
+    const cy = cam.y + view.h / 2;
+    const x0 = pr.footX;
+    const y0 = pr.footY;
+    const fw = pr.fw;
+    const fh = pr.fh;
+    const x1 = x0 + fw;
+    const y1 = y0 + fh;
+    const bx = x0 + fw / 2;
+    const by = y0 + fh / 2;
+    let dx = bx - cx;
+    let dy = by - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    const lean = Math.min(fw, fh) * (pr.lean || 0.36);
+    let ox = dx * lean;
+    let oy = dy * lean;
+    const maxShiftX = fw * 0.58;
+    const maxShiftY = fh * 0.58;
+    ox = Math.max(-maxShiftX, Math.min(maxShiftX, ox));
+    oy = Math.max(-maxShiftY, Math.min(maxShiftY, oy));
+    const roofW = Math.max(16, fw - Math.abs(ox));
+    const roofH = Math.max(16, fh - Math.abs(oy));
+    const rx = x0 + (ox > 0 ? ox : 0);
+    const ry = y0 + (oy > 0 ? oy : 0);
+    const edges = [
+      { x0: x0, y0: y1, x1: x1, y1: y1, nx: 0, ny: 1 },
+      { x0: x1, y0: y1, x1: x1, y1: y0, nx: 1, ny: 0 },
+      { x0: x1, y0: y0, x1: x0, y1: y0, nx: 0, ny: -1 },
+      { x0: x0, y0: y0, x1: x0, y1: y1, nx: -1, ny: 0 },
+    ];
+    const faces = [];
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i];
+      const facing = e.nx * (cx - bx) + e.ny * (cy - by);
+      if (facing > 6) faces.push({ e: e, facing: facing });
+    }
+    faces.sort((a, b) => a.facing - b.facing);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0 - cam.x, y0 - cam.y, fw, fh);
+    ctx.clip();
+    for (let i = 0; i < faces.length; i++) {
+      const e = faces[i].e;
+      const img = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
+      if (img) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, img);
+    }
+    const roof = pr.roof;
+    const tileW = (roof && roof.tileW) || roofW;
+    const tileH = (roof && roof.tileH) || roofH;
+    const roofX = rx - cam.x;
+    const roofY = ry - cam.y;
+    fillTiled(roof, roofX, roofY, roofW, roofH, roofX + (roofW - tileW) / 2, roofY + (roofH - tileH) / 2);
+    ctx.restore();
   }
 
   function drawBlock(pr) {
@@ -4301,9 +4474,9 @@
     for (let i = 0; i < props.length; i++) {
       const pr = props[i];
       if (!propOnScreen(pr)) continue;
-      if (pr.kind === 'build') {
+      if (pr.kind === 'build' && !pr.hand) {
         drawBuildShadow(pr);
-      } else if (pr.kind === 'tree') {
+      } else if (pr.kind === 'tree' && !(pr.img && pr.img.hand)) {
         const pw = pr.w || pr.img.width;
         const cx = Math.round(pr.x + pw / 2 - cam.x);
         const cy = Math.round(pr.sortY - cam.y);
@@ -5660,7 +5833,13 @@
 
   resize();
   buildSprites();
-  buildMap();
-  beginRun(false);
-  requestAnimationFrame(loop);
+  function bootWorld() {
+    buildMap();
+    beginRun(false);
+    requestAnimationFrame(loop);
+  }
+  const artReady = [];
+  if (window.GTAHand && window.GTAHand.loaded) artReady.push(window.GTAHand.loaded);
+  if (window.GTAPlayer && window.GTAPlayer.loaded) artReady.push(window.GTAPlayer.loaded);
+  Promise.all(artReady).then(bootWorld, bootWorld);
 })();
