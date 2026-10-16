@@ -4334,7 +4334,33 @@
     ctx.fillRect(x, y, w, h);
   }
 
-  function drawWallFace(x0, y0, x1, y1, ox, oy, img) {
+  // One ground-floor door, centered. Banded facades fill the rest of that
+  // row with the plain wall and every storey above it with the window piece.
+  // Mack, lagerlokal, and nattklubb stamp the whole v5 wall once.
+  function paintFacade(wall, edge, rise) {
+    const door = wall.door;
+    const dw = door.tileW;
+    const dh = door.tileH;
+    const dx = (edge - dw) / 2;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if (wall.whole) {
+      if (wall.plain) fillTiled(wall.plain, 0, 0, edge, rise, dx, 0);
+      ctx.drawImage(door, dx, 0, dw, dh);
+      return;
+    }
+    const gh = Math.min(wall.groundH || dh, rise);
+    if (wall.win && rise > gh) fillTiled(wall.win, 0, gh, edge, rise - gh, dx, gh);
+    if (wall.plain && gh > 0) fillTiled(wall.plain, 0, 0, edge, gh, dx, 0);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(dx, 0, dw, gh);
+    ctx.clip();
+    ctx.drawImage(door, dx, 0, dw, dh);
+    ctx.restore();
+  }
+
+  function drawWallFace(x0, y0, x1, y1, ox, oy, wall) {
     const ax = x0 - cam.x;
     const ay = y0 - cam.y;
     const bx = x1 - cam.x;
@@ -4346,7 +4372,8 @@
     ctx.beginPath();
     ctx.rect(0, 0, edge, rise);
     ctx.clip();
-    fillTiled(img, 0, 0, edge, rise, 0, 0);
+    if (wall && wall.door) paintFacade(wall, edge, rise);
+    else if (wall) fillTiled(wall, 0, 0, edge, rise, 0, 0);
     ctx.restore();
   }
 
@@ -4427,8 +4454,8 @@
     ctx.clip();
     for (let i = 0; i < faces.length; i++) {
       const e = faces[i].e;
-      const img = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
-      if (img) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, img);
+      const wall = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
+      if (wall) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, wall);
     }
     const roof = pr.roof;
     const tileW = (roof && roof.tileW) || roofW;
