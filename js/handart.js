@@ -26,17 +26,14 @@
     'hus_parkeringshus',
   ];
   // ground is [g, a, b]: source pixels from the bottom. The ground band is
-  // g tall and one window storey spans (b - a). doorPx is the entrance
-  // height in the v5 wall when that wall was fitted to the full building.
-  // The whole picture is then scaled so the entrance is one storey.
-  // Mack's entrance is already about one storey, so it has no doorPx.
+  // g tall and one window storey spans (b - a).
   var buildingStyle = {
     hus_tegeltak: { lean: 0.34, ground: [200, 200, 400] },
     hus_lagenheter: { lean: 0.48, ground: [115, 191, 266] },
     hus_horn_affar: { lean: 0.4, ground: [250, 250, 408] },
     hus_kontor_skrapa: { lean: 0.64, ground: [95, 197, 255] },
-    hus_lagerlokal: { lean: 0.36, doorPx: 96 },
-    hus_nattklubb: { lean: 0.56, doorPx: 108 },
+    hus_lagerlokal: { lean: 0.36 },
+    hus_nattklubb: { lean: 0.56 },
     hus_mack: { lean: 0.3 },
     hus_sjukhus: { lean: 0.52, ground: [75, 120, 165] },
     hus_polis: { lean: 0.32, ground: [150, 150, 240] },
@@ -93,38 +90,41 @@
     return c;
   }
 
-  // No ground band: draw the whole v5 wall once, at storey scale when the
-  // entrance was stretched to the building. Otherwise the door storey is
-  // the source ground band scaled by 52/(b-a), shown once.
+  // The painted door piece is one storey (26 world). A ground band taller
+  // than that, or a whole v5 wall that was fitted to the building, is scaled
+  // down uniformly. The player is 16 world tall, so the door stays a bit
+  // taller than the player. Sides stay the plain module; storeys above stay
+  // the window module.
+  function fitDoorStorey(piece) {
+    var storey = STOREY_PX / 2;
+    if (piece.tileH > storey) {
+      var s = storey / piece.tileH;
+      piece.tileW *= s;
+      piece.tileH = storey;
+    }
+    return piece;
+  }
+
   function prepWall(wallImg, plainImg, winImg, style) {
     var ground = style.ground || null;
     var plain = prepPiece(plainImg);
     var win = prepPiece(winImg);
+    var door;
     if (!ground) {
-      var face = prepPiece(wallImg);
-      if (style.doorPx) {
-        var scale = STOREY_PX / style.doorPx;
-        face.tileW *= scale;
-        face.tileH *= scale;
-      }
-      return {
-        whole: true,
-        door: face,
-        plain: plain,
-        win: win,
-        groundH: face.tileH,
-      };
+      door = prepPiece(wallImg);
+    } else {
+      var groundPx = ground[0] * STOREY_PX / (ground[2] - ground[1]);
+      door = prepPiece(cropBottom(wallImg, groundPx));
+      door.tileW = WALL_WORLD;
+      door.tileH = groundPx / 2;
     }
-    var groundPx = ground[0] * STOREY_PX / (ground[2] - ground[1]);
-    var door = prepPiece(cropBottom(wallImg, groundPx));
-    door.tileW = WALL_WORLD;
-    door.tileH = groundPx / 2;
+    fitDoorStorey(door);
     return {
-      whole: false,
+      whole: !ground,
       door: door,
       plain: plain,
       win: win,
-      groundH: groundPx / 2,
+      groundH: door.tileH,
     };
   }
 
