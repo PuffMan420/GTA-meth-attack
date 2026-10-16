@@ -28,16 +28,16 @@
   // ground is [g, a, b]: source pixels from the bottom. The ground band is
   // g tall and one window storey spans (b - a).
   var buildingStyle = {
-    hus_tegeltak: { lean: 0.34, ground: [200, 200, 400] },
-    hus_lagenheter: { lean: 0.48, ground: [115, 191, 266] },
-    hus_horn_affar: { lean: 0.4, ground: [250, 250, 408] },
-    hus_kontor_skrapa: { lean: 0.64, ground: [95, 197, 255] },
-    hus_lagerlokal: { lean: 0.36 },
-    hus_nattklubb: { lean: 0.56 },
-    hus_mack: { lean: 0.3 },
-    hus_sjukhus: { lean: 0.52, ground: [75, 120, 165] },
-    hus_polis: { lean: 0.32, ground: [150, 150, 240] },
-    hus_parkeringshus: { lean: 0.46, ground: [54, 54, 118] },
+    hus_tegeltak: { lean: 0.17, ground: [200, 200, 400] },
+    hus_lagenheter: { lean: 0.24, ground: [115, 191, 266] },
+    hus_horn_affar: { lean: 0.2, ground: [250, 250, 408] },
+    hus_kontor_skrapa: { lean: 0.32, ground: [95, 197, 255] },
+    hus_lagerlokal: { lean: 0.18 },
+    hus_nattklubb: { lean: 0.28 },
+    hus_mack: { lean: 0.15 },
+    hus_sjukhus: { lean: 0.26, ground: [75, 120, 165] },
+    hus_polis: { lean: 0.16, ground: [150, 150, 240] },
+    hus_parkeringshus: { lean: 0.23, ground: [54, 54, 118] },
   };
   // One facade tile is this many world units wide. The v5 modules are 176
   // px wide, so one image pixel is half a world unit.
@@ -201,7 +201,7 @@
   var buildingSlots = new Array(buildingNames.length);
   for (i = 0; i < buildingNames.length; i++) {
     (function (name, index) {
-      var style = buildingStyle[name] || { lean: 0.4 };
+      var style = buildingStyle[name] || { lean: 0.2 };
       jobs.push(Promise.all([
         load('assets/sprites/' + name + '_tak.png'),
         load('assets/sprites/' + name + '_vagg.png'),

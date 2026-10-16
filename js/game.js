@@ -4,7 +4,7 @@
 
   const TILE = 16;
   const ART = 2;
-  const MAP = 90;
+  const MAP = 270;
   const PERIOD = 18;
   const TW = 6;
   const WORLD = MAP * TILE;
@@ -1310,7 +1310,7 @@
         roof: spec.roof || img,
         wallFront: spec.wallFront || img,
         wallSide: spec.wallSide || spec.wallFront || img,
-        lean: spec.lean || 0.4,
+        lean: spec.lean || 0.2,
         lights: [],
         eaves: 0,
         neon: NEONS[seed % NEONS.length],
@@ -1643,15 +1643,17 @@
             const lotX = (bx * PERIOD + TW) * TILE;
             const lotY = (by * PERIOD + TW) * TILE;
             const lot = (PERIOD - TW) * TILE;
-            const tx0 = (lotX / TILE) | 0;
-            const ty0 = (lotY / TILE) | 0;
-            const tx1 = ((lotX + lot) / TILE) | 0;
-            const ty1 = ((lotY + lot) / TILE) | 0;
+            // The outer two tiles of the lot are the sidewalk. The building
+            // sits on the inner pad so people can walk the pavement.
+            const tx0 = (x0 / TILE) | 0;
+            const ty0 = (y0 / TILE) | 0;
+            const tx1 = ((x0 + fw) / TILE) | 0;
+            const ty1 = ((y0 + fh) / TILE) | 0;
             for (let sy = ty0; sy < ty1; sy++) {
               for (let sx = tx0; sx < tx1; sx++) {
                 if (sx < 0 || sy < 0 || sx >= MAP || sy >= MAP) continue;
                 const id = sy * MAP + sx;
-                if (tiles[id] === T_ROAD || tiles[id] === T_CAR) continue;
+                if (tiles[id] !== T_BUILD) continue;
                 solid[id] = 1;
               }
             }
@@ -1661,20 +1663,20 @@
               wallFront: built.wallFront,
               wallSide: built.wallSide,
               lean: built.lean,
-              w: lot,
-              h: lot,
-              x: lotX,
-              sortY: lotY + lot,
+              w: fw,
+              h: fh,
+              x: x0,
+              sortY: y0 + fh,
               shadowW: 0,
               shadowH: 0,
               lights: [],
               neon: built.neon,
               kind: 'build',
               hand: true,
-              footX: lotX,
-              footY: lotY,
-              fw: lot,
-              fh: lot,
+              footX: x0,
+              footY: y0,
+              fw: fw,
+              fh: fh,
             });
             addLamp(lotX + 12, lotY + lot - 4);
             addLamp(lotX + lot - 12, lotY + lot - 4);
@@ -4426,11 +4428,11 @@
     const dist = Math.hypot(dx, dy) || 1;
     dx /= dist;
     dy /= dist;
-    const lean = Math.min(fw, fh) * (pr.lean || 0.36);
+    const lean = Math.min(fw, fh) * (pr.lean || 0.18);
     let ox = dx * lean;
     let oy = dy * lean;
-    const maxShiftX = fw * 0.58;
-    const maxShiftY = fh * 0.58;
+    const maxShiftX = fw * 0.3;
+    const maxShiftY = fh * 0.3;
     ox = Math.max(-maxShiftX, Math.min(maxShiftX, ox));
     oy = Math.max(-maxShiftY, Math.min(maxShiftY, oy));
     const roofW = Math.max(16, fw - Math.abs(ox));
