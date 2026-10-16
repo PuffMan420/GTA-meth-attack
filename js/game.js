@@ -4,10 +4,12 @@
 
   const TILE = 16;
   const ART = 2;
-  const MAP = 270;
   const PERIOD = 18;
   const TW = 6;
-  const WORLD = MAP * TILE;
+  const BLOCK = PERIOD * TILE;
+  const CHUNK_PX = PERIOD * TILE * ART;
+  const LOAD_R = 2;
+  const UNLOAD_R = 3;
   const MAX_ENEMIES = 32;
   // One world unit: 1 tile = 1 meter. A person is 1 tile wide and about 1.7 m tall.
 
@@ -108,9 +110,11 @@
   const stickEl = document.getElementById('stick');
   const stickKnob = document.getElementById('stick-knob');
 
-  let tiles = new Uint8Array(MAP * MAP);
-  let solid = new Uint8Array(MAP * MAP);
-  let mapCanvas = null;
+  const chunks = new Map();
+  let streamBx = null;
+  let streamBy = null;
+  let glowOriginX = 0;
+  let glowOriginY = 0;
   let signs = [];
   let vignette = null;
   let vignetteKey = '';
@@ -700,8 +704,43 @@
     }
   }
 
+  function mod(n, m) {
+    return ((n % m) + m) % m;
+  }
+
+  function tileOf(v) {
+    return Math.floor(v / TILE);
+  }
+
+  function chunkKey(bx, by) {
+    return bx + ',' + by;
+  }
+
+  function chunkOfTile(tx, ty) {
+    return chunks.get(chunkKey(Math.floor(tx / PERIOD), Math.floor(ty / PERIOD)));
+  }
+
+  function localIndex(tx, ty) {
+    return mod(ty, PERIOD) * PERIOD + mod(tx, PERIOD);
+  }
+
+  function markSolid(tx, ty) {
+    const ch = chunkOfTile(tx, ty);
+    if (!ch) return;
+    ch.solid[localIndex(tx, ty)] = 1;
+  }
+
+  function readSolid(tx, ty) {
+    const ch = chunkOfTile(tx, ty);
+    if (!ch) {
+      const t = computeTile(tx, ty);
+      return t === T_BUILD || t === T_TREE || t === T_CAR || t === T_FOUNT;
+    }
+    return ch.solid[localIndex(tx, ty)] === 1;
+  }
+
   function blockKind(bx, by) {
-    if (bx === 2 && by === 2) return 0;
+    if (bx === 0 && by === 0) return 0;
     const h = hash(bx + 3, by + 11) % 5;
     if (h === 0) return 1;
     if (h === 1) return 2;
@@ -717,10 +756,10 @@
   }
 
   function computeTile(tx, ty) {
-    const mx = tx % PERIOD;
-    const my = ty % PERIOD;
-    const bx = (tx / PERIOD) | 0;
-    const by = (ty / PERIOD) | 0;
+    const mx = mod(tx, PERIOD);
+    const my = mod(ty, PERIOD);
+    const bx = Math.floor(tx / PERIOD);
+    const by = Math.floor(ty / PERIOD);
     const vert = mx < TW;
     const horiz = my < TW;
     if (vert || horiz) {
@@ -842,11 +881,14 @@
       g.fillStyle = '#b7aa9a';
       g.fillRect(x + 8, y + 10, 6, 2);
     }
-    const i = ty * MAP + tx;
-    const roadN = ty > 0 && (tiles[i - MAP] === T_ROAD || tiles[i - MAP] === T_CAR);
-    const roadS = ty < MAP - 1 && (tiles[i + MAP] === T_ROAD || tiles[i + MAP] === T_CAR);
-    const roadW = tx > 0 && (tiles[i - 1] === T_ROAD || tiles[i - 1] === T_CAR);
-    const roadE = tx < MAP - 1 && (tiles[i + 1] === T_ROAD || tiles[i + 1] === T_CAR);
+    const roadish = (nx, ny) => {
+      const t = computeTile(nx, ny);
+      return t === T_ROAD || t === T_CAR;
+    };
+    const roadN = roadish(tx, ty - 1);
+    const roadS = roadish(tx, ty + 1);
+    const roadW = roadish(tx - 1, ty);
+    const roadE = roadish(tx + 1, ty);
     g.fillStyle = '#000';
     if (roadN) g.fillRect(x, y, S, 2);
     if (roadS) g.fillRect(x, y + S - 2, S, 2);
@@ -928,21 +970,16 @@
     g.restore();
   }
 
-  function paintRoadWords(g) {
-    const blocks = (MAP / PERIOD) | 0;
+  function paintRoadWords(g, bx, by) {
     const words = ['BUS STOP', 'SLOW', 'STOP', 'KEEP CLEAR', 'NO PARKING', 'YIELD'];
-    for (let by = 0; by < blocks; by++) {
-      for (let bx = 0; bx < blocks; bx++) {
-        const word = words[hash(bx + 2, by + 5) % words.length];
-        const hx = ((bx * PERIOD + 10) * TILE + 4) * ART;
-        const hy = ((by * PERIOD + 2) * TILE + 2) * ART;
-        paintPixelWord(g, word, hx, hy, word === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', 0);
-        const vertWord = words[hash(bx + 8, by + 1) % words.length];
-        const vx = ((bx * PERIOD + 2) * TILE + 2) * ART;
-        const vy = ((by * PERIOD + 12) * TILE + 4) * ART;
-        paintPixelWord(g, vertWord, vx, vy, vertWord === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', -Math.PI / 2);
-      }
-    }
+    const word = words[hash(bx + 2, by + 5) % words.length];
+    const hx = (10 * TILE + 4) * ART;
+    const hy = (2 * TILE + 2) * ART;
+    paintPixelWord(g, word, hx, hy, word === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', 0);
+    const vertWord = words[hash(bx + 8, by + 1) % words.length];
+    const vx = (2 * TILE + 2) * ART;
+    const vy = (12 * TILE + 4) * ART;
+    paintPixelWord(g, vertWord, vx, vy, vertWord === 'BUS STOP' ? '#e6c84a' : '#f4f1ea', -Math.PI / 2);
   }
 
   function paintLaneArrow(g, x, y, dir) {
@@ -980,22 +1017,25 @@
     }
   }
 
-  function paintMap() {
+  function paintChunk(ch) {
     const S = TILE * ART;
-    mapCanvas = document.createElement('canvas');
-    mapCanvas.width = WORLD * ART;
-    mapCanvas.height = WORLD * ART;
-    const g = mapCanvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = CHUNK_PX;
+    canvas.height = CHUNK_PX;
+    const g = canvas.getContext('2d');
     g.imageSmoothingEnabled = false;
-    signs = [];
-    fountains = [];
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const type = tiles[ty * MAP + tx];
-        const x = tx * S;
-        const y = ty * S;
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
+    const ox = ch.bx * PERIOD;
+    const oy = ch.by * PERIOD;
+    const key = chunkKey(ch.bx, ch.by);
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        const type = ch.tiles[ly * PERIOD + lx];
+        const x = lx * S;
+        const y = ly * S;
+        const mx = lx;
+        const my = ly;
         const vert = mx < TW;
         const horiz = my < TW;
         if (type === T_CAR && !vert && !horiz) {
@@ -1003,7 +1043,7 @@
           g.fillRect(x, y, S, S);
           g.fillStyle = '#5a564e';
           g.fillRect(x + 2, y + 2, 6, 2);
-          if ((tx % 3) === 0) {
+          if (mod(tx, 3) === 0) {
             g.fillStyle = '#f4f1ea';
             g.fillRect(x, y, 2, S);
           }
@@ -1023,12 +1063,12 @@
           g.fillRect(x, y, S, S);
           g.fillStyle = '#524e48';
           g.fillRect(x + 4, y + 6, 5, 2);
-          if ((tx % 3) === 0) {
+          if (mod(tx, 3) === 0) {
             g.fillStyle = '#f4f1ea';
             g.fillRect(x, y, 2, S);
           }
         } else if (type === T_PLAZA) {
-          const checker = ((tx >> 1) + (ty >> 1)) & 1;
+          const checker = (Math.floor(tx / 2) + Math.floor(ty / 2)) & 1;
           g.fillStyle = checker ? '#d2c8b6' : '#b7aa9a';
           g.fillRect(x, y, S, S);
           g.fillStyle = '#efe8dc';
@@ -1050,17 +1090,17 @@
     }
 
     g.fillStyle = '#f4f1ea';
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const type = tiles[ty * MAP + tx];
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const type = ch.tiles[ly * PERIOD + lx];
         if (type !== T_ROAD && type !== T_CAR) continue;
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
+        const mx = lx;
+        const my = ly;
         const vert = mx < TW;
         const horiz = my < TW;
         if (vert && horiz) continue;
-        const x = tx * S;
-        const y = ty * S;
+        const x = lx * S;
+        const y = ly * S;
         const cross = onCrosswalk(mx, my);
         if (cross) {
           if (horiz && !vert) {
@@ -1081,43 +1121,44 @@
       }
     }
     g.fillStyle = '#e6c84a';
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const type = tiles[ty * MAP + tx];
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        const type = ch.tiles[ly * PERIOD + lx];
         if (type !== T_ROAD) continue;
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
+        const mx = lx;
+        const my = ly;
         const vert = mx < TW;
         const horiz = my < TW;
         if (vert === horiz || onCrosswalk(mx, my)) continue;
-        const x = tx * S;
-        const y = ty * S;
-        if (horiz && my === 2 && (tx % 3) !== 0) g.fillRect(x + 4, y + S - 5, 20, 4);
-        if (vert && mx === 2 && (ty % 3) !== 0) g.fillRect(x + S - 5, y + 4, 4, 20);
+        const x = lx * S;
+        const y = ly * S;
+        if (horiz && my === 2 && mod(tx, 3) !== 0) g.fillRect(x + 4, y + S - 5, 20, 4);
+        if (vert && mx === 2 && mod(ty, 3) !== 0) g.fillRect(x + S - 5, y + 4, 4, 20);
       }
     }
-    paintRoadWords(g);
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
+    paintRoadWords(g, ch.bx, ch.by);
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const mx = lx;
+        const my = ly;
         const vert = mx < TW;
         const horiz = my < TW;
         if (vert === horiz || onCrosswalk(mx, my)) continue;
-        if (tiles[ty * MAP + tx] !== T_ROAD) continue;
-        if (horiz && my === 4 && mx % 8 === 5) paintLaneArrow(g, tx * S, ty * S, 0);
-        if (vert && mx === 4 && my % 8 === 5) paintLaneArrow(g, tx * S, ty * S, 1);
+        if (ch.tiles[ly * PERIOD + lx] !== T_ROAD) continue;
+        if (horiz && my === 4 && mx % 8 === 5) paintLaneArrow(g, lx * S, ly * S, 0);
+        if (vert && mx === 4 && my % 8 === 5) paintLaneArrow(g, lx * S, ly * S, 1);
       }
     }
 
-    manholes = [];
-    puddles = [];
-    signals = [];
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const type = tiles[ty * MAP + tx];
-        const x = tx * S;
-        const y = ty * S;
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        const type = ch.tiles[ly * PERIOD + lx];
+        const x = lx * S;
+        const y = ly * S;
         const n = hash(tx, ty);
         if (type === T_ROAD || type === T_CAR) {
           if (n % 17 === 3) {
@@ -1125,7 +1166,7 @@
             g.fillRect(x + 4, y + 22, 14, 2);
             g.fillRect(x + 12, y + 16, 2, 10);
           }
-          if (n % 29 === 4 && !onCrosswalk(tx % PERIOD, ty % PERIOD)) {
+          if (n % 29 === 4 && !onCrosswalk(lx, ly)) {
             g.fillStyle = '#141210';
             g.fillRect(x + 6, y + 6, 20, 20);
             g.fillStyle = '#3a3834';
@@ -1133,9 +1174,9 @@
             g.fillStyle = '#8a867e';
             g.fillRect(x + 12, y + 12, 6, 2);
             g.fillRect(x + 10, y + 16, 8, 2);
-            manholes.push({ x: tx * TILE + 8, y: ty * TILE + 8 });
+            manholes.push({ x: tx * TILE + 8, y: ty * TILE + 8, chunk: key });
           }
-          if (n % 23 === 7) puddles.push({ x: tx * TILE + 8, y: ty * TILE + 10, phase: (n % 9) });
+          if (n % 23 === 7) puddles.push({ x: tx * TILE + 8, y: ty * TILE + 10, phase: (n % 9), chunk: key });
         } else if (type === T_SIDE && n % 19 === 5) {
           g.fillStyle = '#000';
           g.fillRect(x + 8, y + 12, 12, 10);
@@ -1144,47 +1185,110 @@
           g.fillStyle = '#f4f1ea';
           g.fillRect(x + 12, y + 15, 4, 2);
         }
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
-        if (mx === TW && my === 0) signals.push({ x: tx * TILE + 4, y: ty * TILE - 4 });
+        if (lx === TW && ly === 0) signals.push({ x: tx * TILE + 4, y: ty * TILE - 4, chunk: key });
       }
     }
+    ch.canvas = canvas;
   }
 
-  function stretchStreetCars() {
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        if (tiles[ty * MAP + tx] !== T_CAR) continue;
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
-        if (!(mx < TW || my < TW)) continue;
-        const horiz = my < TW && !(mx < TW);
+  function fillChunk(ch) {
+    const ox = ch.bx * PERIOD;
+    const oy = ch.by * PERIOD;
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const t = computeTile(ox + lx, oy + ly);
+        const i = ly * PERIOD + lx;
+        ch.tiles[i] = t;
+        ch.solid[i] = (t === T_BUILD || t === T_TREE || t === T_CAR || t === T_FOUNT) ? 1 : 0;
+      }
+    }
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        if (ch.tiles[ly * PERIOD + lx] !== T_CAR) continue;
+        if (!(lx < TW || ly < TW)) continue;
+        const horiz = ly < TW && !(lx < TW);
         for (let d = -2; d <= 2; d++) {
           if (!d) continue;
-          const nx = tx + (horiz ? d : 0);
-          const ny = ty + (horiz ? 0 : d);
-          if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue;
-          const ni = ny * MAP + nx;
-          if (tiles[ni] === T_ROAD) solid[ni] = 1;
+          const nx = lx + (horiz ? d : 0);
+          const ny = ly + (horiz ? 0 : d);
+          if (nx < 0 || ny < 0 || nx >= PERIOD || ny >= PERIOD) continue;
+          const ni = ny * PERIOD + nx;
+          if (ch.tiles[ni] === T_ROAD) ch.solid[ni] = 1;
         }
       }
     }
   }
 
-  function buildMap() {
-    tiles = new Uint8Array(MAP * MAP);
-    solid = new Uint8Array(MAP * MAP);
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const t = computeTile(tx, ty);
-        const i = ty * MAP + tx;
-        tiles[i] = t;
-        solid[i] = (t === T_BUILD || t === T_TREE || t === T_CAR || t === T_FOUNT) ? 1 : 0;
+  function loadChunk(bx, by) {
+    const key = chunkKey(bx, by);
+    if (chunks.has(key)) return chunks.get(key);
+    const ch = {
+      bx: bx,
+      by: by,
+      tiles: new Uint8Array(PERIOD * PERIOD),
+      solid: new Uint8Array(PERIOD * PERIOD),
+      claim: new Uint8Array(PERIOD * PERIOD),
+      canvas: null,
+    };
+    chunks.set(key, ch);
+    fillChunk(ch);
+    paintChunk(ch);
+    buildBlockProps(bx, by);
+    return ch;
+  }
+
+  function dropTagged(list, key) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].chunk === key) list.splice(i, 1);
+    }
+  }
+
+  function unloadChunk(ch) {
+    const key = chunkKey(ch.bx, ch.by);
+    chunks.delete(key);
+    ch.canvas = null;
+    dropTagged(props, key);
+    dropTagged(manholes, key);
+    dropTagged(puddles, key);
+    dropTagged(signals, key);
+    dropTagged(fountains, key);
+    dropTagged(street, key);
+  }
+
+  function streamAround(x, y) {
+    const bx = Math.floor(tileOf(x) / PERIOD);
+    const by = Math.floor(tileOf(y) / PERIOD);
+    if (bx === streamBx && by === streamBy && chunks.size) return;
+    streamBx = bx;
+    streamBy = by;
+    for (let yb = by - LOAD_R; yb <= by + LOAD_R; yb++) {
+      for (let xb = bx - LOAD_R; xb <= bx + LOAD_R; xb++) {
+        if (!chunks.has(chunkKey(xb, yb))) loadChunk(xb, yb);
       }
     }
-    stretchStreetCars();
-    paintMap();
-    buildProps();
+    const drop = [];
+    for (const ch of chunks.values()) {
+      if (Math.abs(ch.bx - bx) > UNLOAD_R || Math.abs(ch.by - by) > UNLOAD_R) drop.push(ch);
+    }
+    for (let i = 0; i < drop.length; i++) unloadChunk(drop[i]);
+    buildCityGlow();
+    if (typeof refillAmbience === 'function') refillAmbience();
+  }
+
+  function buildMap() {
+    treeSprite = makeTreeSprite();
+    lampSprite = makeLampSprite();
+    fountainSprite = makeFountainSprite();
+    props = [];
+    signs = [];
+    fountains = [];
+    manholes = [];
+    puddles = [];
+    signals = [];
+    chunks.clear();
+    streamBx = null;
+    streamBy = null;
+    streamAround((9 + 0.5) * TILE, (4 + 0.5) * TILE);
     initAmbience();
   }
 
@@ -1617,17 +1721,9 @@
   let lampSprite = null;
   let fountainSprite = null;
 
-  function buildProps() {
-    props = [];
-    signs = [];
-    fountains = [];
-    treeSprite = makeTreeSprite();
-    lampSprite = makeLampSprite();
-    fountainSprite = makeFountainSprite();
-    const blocks = (MAP / PERIOD) | 0;
-    for (let by = 0; by < blocks; by++) {
-      for (let bx = 0; bx < blocks; bx++) {
-        const kind = blockKind(bx, by);
+  function buildBlockProps(bx, by) {
+    const propStart = props.length;
+    const kind = blockKind(bx, by);
         const x0 = (bx * PERIOD + TW + 2) * TILE;
         const y0 = (by * PERIOD + TW + 2) * TILE;
         const fw = 8 * TILE;
@@ -1645,16 +1741,14 @@
             const lot = (PERIOD - TW) * TILE;
             // The outer two tiles of the lot are the sidewalk. The building
             // sits on the inner pad so people can walk the pavement.
-            const tx0 = (x0 / TILE) | 0;
-            const ty0 = (y0 / TILE) | 0;
-            const tx1 = ((x0 + fw) / TILE) | 0;
-            const ty1 = ((y0 + fh) / TILE) | 0;
+            const tx0 = Math.floor(x0 / TILE);
+            const ty0 = Math.floor(y0 / TILE);
+            const tx1 = Math.floor((x0 + fw) / TILE);
+            const ty1 = Math.floor((y0 + fh) / TILE);
             for (let sy = ty0; sy < ty1; sy++) {
               for (let sx = tx0; sx < tx1; sx++) {
-                if (sx < 0 || sy < 0 || sx >= MAP || sy >= MAP) continue;
-                const id = sy * MAP + sx;
-                if (tiles[id] !== T_BUILD) continue;
-                solid[id] = 1;
+                if (computeTile(sx, sy) !== T_BUILD) continue;
+                markSolid(sx, sy);
               }
             }
             props.push({
@@ -1681,9 +1775,9 @@
             addLamp(lotX + 12, lotY + lot - 4);
             addLamp(lotX + lot - 12, lotY + lot - 4);
           } else {
-          for (let sy = (y0 / TILE) | 0; sy < ((y0 + fh) / TILE); sy++) {
-            for (let sx = (x0 / TILE) | 0; sx < ((x0 + fw) / TILE); sx++) {
-              if (sx >= 0 && sy >= 0 && sx < MAP && sy < MAP) solid[sy * MAP + sx] = 1;
+          for (let sy = Math.floor(y0 / TILE); sy < Math.floor((y0 + fh) / TILE); sy++) {
+            for (let sx = Math.floor(x0 / TILE); sx < Math.floor((x0 + fw) / TILE); sx++) {
+              markSolid(sx, sy);
             }
           }
           const lights = [];
@@ -1732,13 +1826,15 @@
             lights: [{ x: x0 + fw / 2, y: y0 + fh / 2, r: 42, color: '#9eecff' }],
             kind: 'fountain',
           });
-          fountains.push({ x: x0 + fw / 2, y: y0 + fh / 2 });
+          fountains.push({ x: x0 + fw / 2, y: y0 + fh / 2, chunk: chunkKey(bx, by) });
         }
-      }
-    }
-    for (let ty = 0; ty < MAP; ty++) {
-      for (let tx = 0; tx < MAP; tx++) {
-        const t = tiles[ty * MAP + tx];
+    const ox = bx * PERIOD;
+    const oy = by * PERIOD;
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        const t = computeTile(tx, ty);
         const px = tx * TILE;
         const py = ty * TILE;
         if (t === T_TREE) {
@@ -1754,8 +1850,8 @@
             kind: 'tree',
           });
         } else if (t === T_CAR) {
-          const mx = tx % PERIOD;
-          const my = ty % PERIOD;
+          const mx = lx;
+          const my = ly;
           const onRoad = mx < TW || my < TW;
           const horiz = onRoad ? (my < TW && mx >= TW) : ((hash(tx, ty) & 2) === 0);
           let anchorX = px + TILE / 2;
@@ -1794,35 +1890,36 @@
         }
       }
     }
-    buildCityGlow();
+    const key = chunkKey(bx, by);
+    for (let i = propStart; i < props.length; i++) props[i].chunk = key;
   }
 
-  const carClaim = new Uint8Array(MAP * MAP);
-
   function claimLotCar(tx, ty, horiz) {
+    const ch = chunkOfTile(tx, ty);
+    if (!ch) return null;
     const shifts = [0, 1, -1, 2, -2];
     for (let s = 0; s < shifts.length; s++) {
       const shift = shifts[s];
       const cells = [];
       let ok = true;
-      let minX = MAP;
-      let maxX = 0;
-      let minY = MAP;
-      let maxY = 0;
+      let minX = tx;
+      let maxX = tx;
+      let minY = ty;
+      let maxY = ty;
       for (let d = -2; d <= 2; d++) {
         const nx = tx + (horiz ? d + shift : 0);
         const ny = ty + (horiz ? 0 : d + shift);
-        if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) {
+        if (chunkOfTile(nx, ny) !== ch) {
           ok = false;
           break;
         }
-        const ni = ny * MAP + nx;
-        const kind = tiles[ni];
-        if ((kind !== T_LOT && kind !== T_CAR) || carClaim[ni]) {
+        const li = localIndex(nx, ny);
+        const kind = ch.tiles[li];
+        if ((kind !== T_LOT && kind !== T_CAR) || ch.claim[li]) {
           ok = false;
           break;
         }
-        cells.push(ni);
+        cells.push(li);
         if (nx < minX) minX = nx;
         if (nx > maxX) maxX = nx;
         if (ny < minY) minY = ny;
@@ -1830,8 +1927,8 @@
       }
       if (!ok) continue;
       for (let i = 0; i < cells.length; i++) {
-        carClaim[cells[i]] = 1;
-        solid[cells[i]] = 1;
+        ch.claim[cells[i]] = 1;
+        ch.solid[cells[i]] = 1;
       }
       return {
         x: ((minX + maxX + 1) * TILE) / 2,
@@ -1857,10 +1954,7 @@
   }
 
   function isSolid(x, y) {
-    const tx = x / TILE | 0;
-    const ty = y / TILE | 0;
-    if (tx < 0 || ty < 0 || tx >= MAP || ty >= MAP) return true;
-    return solid[ty * MAP + tx] === 1;
+    return readSolid(tileOf(x), tileOf(y));
   }
 
   function overlaps(ent) {
@@ -1885,13 +1979,12 @@
 
   function findOpen(x, y, radius) {
     const probe = { x: x, y: y, radius: radius || 6 };
-    if (x > 20 && y > 20 && x < WORLD - 20 && y < WORLD - 20 && !overlaps(probe)) return { x: x, y: y };
+    if (!overlaps(probe)) return { x: x, y: y };
     for (let i = 0; i < 28; i++) {
       const a = (i / 28) * Math.PI * 2;
       const d = 20 + (i % 6) * 14;
       const px = x + Math.cos(a) * d;
       const py = y + Math.sin(a) * d;
-      if (px < 24 || py < 24 || px > WORLD - 24 || py > WORLD - 24) continue;
       probe.x = px;
       probe.y = py;
       if (!overlaps(probe)) return { x: px, y: py };
@@ -1956,14 +2049,10 @@
   }
 
   function cameraTarget() {
-    const biasY = 0;
-    let x = player.x - view.w / 2;
-    let y = player.y - view.h / 2 + biasY;
-    if (view.w >= WORLD) x = -Math.floor((view.w - WORLD) / 2);
-    else x = Math.max(0, Math.min(WORLD - view.w, x));
-    if (view.h >= WORLD) y = -Math.floor((view.h - WORLD) / 2);
-    else y = Math.max(0, Math.min(WORLD - view.h, y));
-    return { x: x, y: y };
+    return {
+      x: player.x - view.w / 2,
+      y: player.y - view.h / 2,
+    };
   }
 
   function snapCamera() {
@@ -2773,8 +2862,6 @@
       else if (side === 1) { x = cam.x + view.w + 12; y = cam.y + Math.random() * view.h; }
       else if (side === 2) { y = cam.y - 12; x = cam.x + Math.random() * view.w; }
       else { y = cam.y + view.h + 12; x = cam.x + Math.random() * view.w; }
-      x = Math.max(24, Math.min(WORLD - 24, x));
-      y = Math.max(24, Math.min(WORLD - 24, y));
       const dx = x - player.x;
       const dy = y - player.y;
       if (dx * dx + dy * dy < 90 * 90) continue;
@@ -2975,7 +3062,7 @@
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.life -= dt;
-      if (p.x < 0 || p.y < 0 || p.x > WORLD || p.y > WORLD) {
+      if (!player || Math.abs(p.x - player.x) > 1600 || Math.abs(p.y - player.y) > 1600) {
         p.alive = false;
         continue;
       }
@@ -3073,7 +3160,7 @@
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
-      if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > WORLD || b.y > WORLD) {
+      if (b.life <= 0 || !player || Math.abs(b.x - player.x) > 1600 || Math.abs(b.y - player.y) > 1600) {
         b.alive = false;
         continue;
       }
@@ -3617,13 +3704,13 @@
 
   function findSidewalk() {
     if (!player) return null;
-    const ox = (player.x / TILE) | 0;
-    const oy = (player.y / TILE) | 0;
+    const ox = tileOf(player.x);
+    const oy = tileOf(player.y);
     for (let i = 0; i < 14; i++) {
       const tx = ox + ((Math.random() * 28) | 0) - 14;
       const ty = oy + ((Math.random() * 28) | 0) - 14;
-      if (tx < 1 || ty < 1 || tx >= MAP - 1 || ty >= MAP - 1) continue;
-      if (tiles[ty * MAP + tx] !== T_SIDE) continue;
+      if (!chunkOfTile(tx, ty)) continue;
+      if (computeTile(tx, ty) !== T_SIDE) continue;
       const x = (tx + 0.5) * TILE;
       const y = (ty + 0.5) * TILE;
       if (isSolid(x, y)) continue;
@@ -3713,97 +3800,157 @@
     f.vy = (sy / len) * 84;
   }
 
+  function anchorPoint() {
+    if (player) return { x: player.x, y: player.y };
+    return { x: (9 + 0.5) * TILE, y: (4 + 0.5) * TILE };
+  }
+
+  function nearAnchor(x, y) {
+    const a = anchorPoint();
+    const far = (UNLOAD_R + 0.4) * BLOCK;
+    return Math.abs(x - a.x) < far && Math.abs(y - a.y) < far;
+  }
+
+  function spawnTrafficCar(cell, n) {
+    const model = handCarName(hash(n + 3, cell.x | 0));
+    const color = CAR_COLORS[hash(n, cell.y | 0) % CAR_COLORS.length];
+    const img = vehicleSprite(model, color);
+    const ang = Math.atan2(cell.vy, cell.vx);
+    const carScale = img.hand ? 1 : 0.84;
+    const cruise = 46 + (n % 4) * 6;
+    traffic.push({
+      x: cell.x,
+      y: cell.y,
+      ang: ang,
+      vx: Math.cos(ang),
+      vy: Math.sin(ang),
+      speed: cruise,
+      turnCool: 0,
+      phase: n * 1.7,
+      model: model,
+      img: img,
+      spriteW: (img.worldW || 36) * carScale,
+      spriteH: (img.worldH || 72) * carScale,
+      radius: 14,
+      vel: cruise,
+      cruise: cruise,
+      braking: 0,
+      steer: 0,
+      shoveX: 0,
+      shoveY: 0,
+    });
+  }
+
+  function laneCells(ch) {
+    const lanes = [];
+    const ox = ch.bx * PERIOD;
+    const oy = ch.by * PERIOD;
+    for (let ly = 0; ly < PERIOD; ly++) {
+      for (let lx = 0; lx < PERIOD; lx++) {
+        if (ch.solid[ly * PERIOD + lx]) continue;
+        const tx = ox + lx;
+        const ty = oy + ly;
+        const x = (tx + 0.5) * TILE;
+        const y = (ty + 0.5) * TILE;
+        if (ly === 2 && lx > TW + 2 && lx < PERIOD - 3) lanes.push({ x: x, y: y, vx: 52, vy: 0 });
+        else if (ly === 3 && lx > TW + 2 && lx < PERIOD - 3) lanes.push({ x: x, y: y, vx: -48, vy: 0 });
+        else if (lx === 2 && ly > TW + 2 && ly < PERIOD - 3) lanes.push({ x: x, y: y, vx: 0, vy: 50 });
+        else if (lx === 3 && ly > TW + 2 && ly < PERIOD - 3) lanes.push({ x: x, y: y, vx: 0, vy: -46 });
+      }
+    }
+    return lanes;
+  }
+
+  function refillAmbience() {
+    const capCars = 8;
+    const capStreet = 18;
+    for (let i = traffic.length - 1; i >= 0; i--) {
+      if (!nearAnchor(traffic[i].x, traffic[i].y)) traffic.splice(i, 1);
+    }
+    for (let i = street.length - 1; i >= 0; i--) {
+      if (!nearAnchor(street[i].x, street[i].y)) street.splice(i, 1);
+    }
+    for (let i = pigeons.length - 1; i >= 0; i--) {
+      if (!nearAnchor(pigeons[i].homeX, pigeons[i].homeY)) pigeons.splice(i, 1);
+    }
+    const list = [];
+    for (const ch of chunks.values()) list.push(ch);
+    list.sort((a, b) => (a.bx - b.bx) || (a.by - b.by));
+    let n = traffic.length;
+    for (let i = 0; i < list.length && traffic.length < capCars; i++) {
+      const lanes = laneCells(list[i]);
+      if (!lanes.length) continue;
+      const cell = lanes[hash(list[i].bx + 4, list[i].by + 9) % lanes.length];
+      let taken = false;
+      for (let c = 0; c < traffic.length; c++) {
+        const dx = traffic[c].x - cell.x;
+        const dy = traffic[c].y - cell.y;
+        if (dx * dx + dy * dy < 70 * 70) taken = true;
+      }
+      if (taken) continue;
+      spawnTrafficCar(cell, n++);
+    }
+    for (let i = 0; i < list.length && street.length < capStreet; i++) {
+      const ch = list[i];
+      const key = chunkKey(ch.bx, ch.by);
+      let has = false;
+      for (let s = 0; s < street.length; s++) if (street[s].chunk === key) has = true;
+      if (has) continue;
+      const ox = ch.bx * PERIOD;
+      const oy = ch.by * PERIOD;
+      let placed = false;
+      for (let ly = 1; ly < PERIOD - 1 && !placed; ly++) {
+        for (let lx = 1; lx < PERIOD - 1 && !placed; lx++) {
+          if (ch.tiles[ly * PERIOD + lx] !== T_SIDE) continue;
+          const tx = ox + lx;
+          const ty = oy + ly;
+          if (hash(tx, ty) % 17 !== 4) continue;
+          const x = (tx + 0.5) * TILE;
+          const y = (ty + 0.5) * TILE;
+          if (isSolid(x, y)) continue;
+          const roll = hash(tx + 1, ty) % 3;
+          const kind = roll === 0 ? 'hydrant' : roll === 1 ? 'bin' : 'cone';
+          const img = kind === 'hydrant' ? spr.hydrant : kind === 'bin' ? spr.bin : spr.cone;
+          if (!img) continue;
+          street.push({
+            id: nextId++,
+            kind: kind,
+            chunk: key,
+            x: x,
+            y: y,
+            vx: 0,
+            vy: 0,
+            hp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
+            maxHp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
+            radius: kind === 'cone' ? 4 : 6,
+            alive: true,
+            dying: 0,
+            ang: (hash(tx, ty) % 5) * 0.2,
+            spray: 0,
+            hit: 0,
+            img: img,
+          });
+          placed = true;
+        }
+      }
+    }
+    if (pigeons.length < 4) {
+      for (let i = 0; i < fountains.length && pigeons.length < 4; i++) {
+        const f = fountains[i];
+        pigeons.push({
+          x: f.x - 8, y: f.y + 12, homeX: f.x - 8, homeY: f.y + 12,
+          vx: 0, vy: 0, flying: false, phase: i,
+        });
+      }
+    }
+  }
+
   function initAmbience() {
     traffic = [];
     pigeons = [];
     folk = [];
-    const lanes = [];
-    for (let ty = 1; ty < MAP - 1; ty++) {
-      for (let tx = 1; tx < MAP - 1; tx++) {
-        if (solid[ty * MAP + tx]) continue;
-        const mx = tx % PERIOD;
-        const my = ty % PERIOD;
-        const x = (tx + 0.5) * TILE;
-        const y = (ty + 0.5) * TILE;
-        if (my === 2 && mx > TW + 2 && mx < PERIOD - 3) lanes.push({ x: x, y: y, vx: 52, vy: 0, horiz: true });
-        else if (my === 3 && mx > TW + 2 && mx < PERIOD - 3) lanes.push({ x: x, y: y, vx: -48, vy: 0, horiz: true });
-        else if (mx === 2 && my > TW + 2 && my < PERIOD - 3) lanes.push({ x: x, y: y, vx: 0, vy: 50, horiz: false });
-        else if (mx === 3 && my > TW + 2 && my < PERIOD - 3) lanes.push({ x: x, y: y, vx: 0, vy: -46, horiz: false });
-      }
-    }
-    const step = Math.max(1, (lanes.length / 8) | 0);
-    for (let i = 0; i < 8 && lanes.length; i++) {
-      const cell = lanes[(i * step) % lanes.length];
-      const model = handCarName(hash(i + 3, i * 5 + 1));
-      const color = CAR_COLORS[(i * 3) % CAR_COLORS.length];
-      const img = vehicleSprite(model, color);
-      const ang = Math.atan2(cell.vy, cell.vx);
-      const carScale = img.hand ? 1 : 0.84;
-      traffic.push({
-        x: cell.x,
-        y: cell.y,
-        ang: ang,
-        vx: Math.cos(ang),
-        vy: Math.sin(ang),
-        speed: 46 + (i % 4) * 6,
-        turnCool: 0,
-        phase: i * 1.7,
-        model: model,
-        img: img,
-        spriteW: (img.worldW || 36) * carScale,
-        spriteH: (img.worldH || 72) * carScale,
-        radius: 14,
-        vel: 46 + (i % 4) * 6,
-        cruise: 46 + (i % 4) * 6,
-        braking: 0,
-        steer: 0,
-        shoveX: 0,
-        shoveY: 0,
-      });
-    }
     street = [];
-    const propsWanted = 22;
-    for (let n = 0; street.length < propsWanted && n < 400; n++) {
-      const tx = 2 + ((n * 17) % (MAP - 4));
-      const ty = 2 + ((n * 29) % (MAP - 4));
-      if (tiles[ty * MAP + tx] !== T_SIDE) continue;
-      const x = (tx + 0.5) * TILE;
-      const y = (ty + 0.5) * TILE;
-      if (isSolid(x, y)) continue;
-      const kind = n % 3 === 0 ? 'hydrant' : n % 3 === 1 ? 'bin' : 'cone';
-      const img = kind === 'hydrant' ? spr.hydrant : kind === 'bin' ? spr.bin : spr.cone;
-      if (!img) continue;
-      street.push({
-        id: nextId++,
-        kind: kind,
-        x: x,
-        y: y,
-        vx: 0,
-        vy: 0,
-        hp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
-        maxHp: kind === 'hydrant' ? 3 : kind === 'bin' ? 2 : 1,
-        radius: kind === 'cone' ? 4 : 6,
-        alive: true,
-        dying: 0,
-        ang: (n % 5) * 0.2,
-        spray: 0,
-        hit: 0,
-        img: img,
-      });
-    }
-    for (let i = 0; i < fountains.length && pigeons.length < 5; i++) {
-      const f = fountains[i];
-      pigeons.push({
-        x: f.x - 8, y: f.y + 12, homeX: f.x - 8, homeY: f.y + 12,
-        vx: 0, vy: 0, flying: false, phase: i,
-      });
-      if (pigeons.length < 5) {
-        pigeons.push({
-          x: f.x + 10, y: f.y + 6, homeX: f.x + 10, homeY: f.y + 6,
-          vx: 0, vy: 0, flying: false, phase: i + 0.4,
-        });
-      }
-    }
+    refillAmbience();
   }
 
   function updateAmbience(dt) {
@@ -3855,9 +4002,9 @@
         f.vx = Math.cos(ang) * speed;
         f.vy = Math.sin(ang) * speed;
       }
-      const tx = (f.x / TILE) | 0;
-      const ty = (f.y / TILE) | 0;
-      if (tx < 0 || ty < 0 || tx >= MAP || ty >= MAP || tiles[ty * MAP + tx] !== T_SIDE) {
+      const tx = tileOf(f.x);
+      const ty = tileOf(f.y);
+      if (computeTile(tx, ty) !== T_SIDE) {
         f.vx = -f.vx;
         f.vy = -f.vy;
         if (f.panic > 0) {
@@ -4056,20 +4203,21 @@
   }
 
   function isOpenRoad(x, y) {
-    const tx = x / TILE | 0;
-    const ty = y / TILE | 0;
-    if (tx < 1 || ty < 1 || tx >= MAP - 1 || ty >= MAP - 1) return false;
-    const i = ty * MAP + tx;
-    return tiles[i] === T_ROAD && solid[i] === 0;
+    const tx = tileOf(x);
+    const ty = tileOf(y);
+    const ch = chunkOfTile(tx, ty);
+    if (!ch) return false;
+    const i = localIndex(tx, ty);
+    return ch.tiles[i] === T_ROAD && ch.solid[i] === 0;
   }
 
   function steerTraffic(car, dt) {
     const look = 30;
     const fx = car.x + Math.cos(car.ang) * look;
     const fy = car.y + Math.sin(car.ang) * look;
-    const tx = car.x / TILE | 0;
-    const ty = car.y / TILE | 0;
-    const crossing = (tx % PERIOD) < TW && (ty % PERIOD) < TW;
+    const tx = tileOf(car.x);
+    const ty = tileOf(car.y);
+    const crossing = mod(tx, PERIOD) < TW && mod(ty, PERIOD) < TW;
     const axes = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
     let want = car.ang;
     const blocked = !isOpenRoad(fx, fy);
@@ -4147,10 +4295,6 @@
         break;
       }
     }
-    if (car.x < 40) car.x = WORLD - 50;
-    if (car.x > WORLD - 40) car.x = 50;
-    if (car.y < 40) car.y = WORLD - 50;
-    if (car.y > WORLD - 40) car.y = 50;
     car.speed = car.vel;
     car.vx = Math.cos(car.ang) * car.vel;
     car.vy = Math.sin(car.ang) * car.vel;
@@ -4487,15 +4631,17 @@
   }
 
   function drawWorld() {
-    const sx = cam.x < 0 ? 0 : Math.floor(cam.x);
-    const sy = cam.y < 0 ? 0 : Math.floor(cam.y);
-    const ox = cam.x < 0 ? -cam.x : sx - cam.x;
-    const oy = cam.y < 0 ? -cam.y : sy - cam.y;
-    const sw = Math.min(WORLD - sx, Math.ceil(view.w - Math.min(0, ox)) + 1);
-    const sh = Math.min(WORLD - sy, Math.ceil(view.h - Math.min(0, oy)) + 1);
-    if (sw > 0 && sh > 0) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(mapCanvas, sx * ART, sy * ART, sw * ART, sh * ART, ox, oy, sw, sh);
+    ctx.imageSmoothingEnabled = false;
+    const x0 = Math.floor(cam.x / BLOCK) - 1;
+    const y0 = Math.floor(cam.y / BLOCK) - 1;
+    const x1 = Math.floor((cam.x + view.w) / BLOCK) + 1;
+    const y1 = Math.floor((cam.y + view.h) / BLOCK) + 1;
+    for (let by = y0; by <= y1; by++) {
+      for (let bx = x0; bx <= x1; bx++) {
+        const ch = chunks.get(chunkKey(bx, by));
+        if (!ch || !ch.canvas) continue;
+        ctx.drawImage(ch.canvas, bx * BLOCK - cam.x, by * BLOCK - cam.y, BLOCK, BLOCK);
+      }
     }
     drawPuddles();
     drawSkids();
@@ -4740,6 +4886,41 @@
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, view.w, view.h);
     if (quality === 'high') paintEdgeBlur();
+    drawLocalMap();
+  }
+
+  function drawLocalMap() {
+    if (streamBx == null) return;
+    const size = 86;
+    const ox = view.w - size - 10;
+    const oy = 10;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8, 10, 16, 0.78)';
+    ctx.fillRect(ox - 2, oy - 2, size + 4, size + 4);
+    ctx.strokeStyle = '#e6c84a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ox - 2.5, oy - 2.5, size + 5, size + 5);
+    const span = (LOAD_R * 2 + 1) * BLOCK;
+    const scale = size / span;
+    const originX = (streamBx - LOAD_R) * BLOCK;
+    const originY = (streamBy - LOAD_R) * BLOCK;
+    ctx.beginPath();
+    ctx.rect(ox, oy, size, size);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = false;
+    for (const ch of chunks.values()) {
+      if (!ch.canvas) continue;
+      const x = ox + (ch.bx * BLOCK - originX) * scale;
+      const y = oy + (ch.by * BLOCK - originY) * scale;
+      ctx.drawImage(ch.canvas, x, y, BLOCK * scale, BLOCK * scale);
+    }
+    if (player) {
+      ctx.fillStyle = '#ffe14a';
+      const px = ox + (player.x - originX) * scale;
+      const py = oy + (player.y - originY) * scale;
+      ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+    }
+    ctx.restore();
   }
 
   const spriteCache = {};
@@ -5017,13 +5198,32 @@
   }
 
   function buildCityGlow() {
-    const w = WORLD >> 1;
-    const h = WORLD >> 1;
+    let minX = 0;
+    let minY = 0;
+    let maxX = BLOCK;
+    let maxY = BLOCK;
+    let any = false;
+    for (const ch of chunks.values()) {
+      const x = ch.bx * BLOCK;
+      const y = ch.by * BLOCK;
+      if (!any || x < minX) minX = x;
+      if (!any || y < minY) minY = y;
+      if (!any || x + BLOCK > maxX) maxX = x + BLOCK;
+      if (!any || y + BLOCK > maxY) maxY = y + BLOCK;
+      any = true;
+    }
+    glowOriginX = minX;
+    glowOriginY = minY;
+    const w = Math.max(2, Math.ceil((maxX - minX) * 0.5));
+    const h = Math.max(2, Math.ceil((maxY - minY) * 0.5));
+    if (w > 2048 || h > 2048) return;
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
+    const gx = (x) => (x - glowOriginX) * 0.5;
+    const gy = (y) => (y - glowOriginY) * 0.5;
     for (let i = 0; i < props.length; i++) {
       const pr = props[i];
       if (pr.kind === 'tree') continue;
@@ -5031,7 +5231,7 @@
         for (let k = 0; k < pr.lights.length; k++) {
           const L = pr.lights[k];
           g.fillStyle = L.color;
-          g.fillRect(L.x * 0.5 - 1.5, L.y * 0.5 - 1.5, 3, 3);
+          g.fillRect(gx(L.x) - 1.5, gy(L.y) - 1.5, 3, 3);
         }
         continue;
       }
@@ -5040,16 +5240,17 @@
           const L = pr.lights[k];
           g.fillStyle = L.color;
           g.beginPath();
-          g.arc(L.x * 0.5, L.y * 0.5, 3.5, 0, Math.PI * 2);
+          g.arc(gx(L.x), gy(L.y), 3.5, 0, Math.PI * 2);
           g.fill();
         }
         continue;
       }
-      const pw = pr.w || pr.img.width;
-      const ph = pr.h || pr.img.height;
+      const pw = pr.w || (pr.img && pr.img.width) || 8;
+      const ph = pr.h || (pr.img && pr.img.height) || 8;
       const dw = Math.max(1, pw * 0.5);
       const dh = Math.max(1, ph * 0.5);
-      g.drawImage(pr.img, pr.x * 0.5, (pr.sortY - ph) * 0.5, dw, dh);
+      if (!pr.img) continue;
+      g.drawImage(pr.img, gx(pr.x), gy(pr.sortY - ph), dw, dh);
     }
     extractBright(c);
     fattenGlow(c);
@@ -5112,14 +5313,16 @@
   }
 
   function blitGlow(src, scale) {
-    const sx = Math.max(0, cam.x * scale);
-    const sy = Math.max(0, cam.y * scale);
-    const dx = Math.max(0, -cam.x);
-    const dy = Math.max(0, -cam.y);
-    const sw = Math.min(src.width - sx, (view.w - dx) * scale);
-    const sh = Math.min(src.height - sy, (view.h - dy) * scale);
-    if (sw <= 0 || sh <= 0) return;
-    ctx.drawImage(src, sx, sy, sw, sh, dx, dy, sw / scale, sh / scale);
+    const sx = (cam.x - glowOriginX) * scale;
+    const sy = (cam.y - glowOriginY) * scale;
+    const srcX = Math.max(0, sx);
+    const srcY = Math.max(0, sy);
+    const destX = glowOriginX - cam.x + srcX / scale;
+    const destY = glowOriginY - cam.y + srcY / scale;
+    const sw = Math.min(src.width - srcX, (view.w - destX) * scale);
+    const sh = Math.min(src.height - srcY, (view.h - destY) * scale);
+    if (sw <= 1 || sh <= 1) return;
+    ctx.drawImage(src, srcX, srcY, sw, sh, destX, destY, sw / scale, sh / scale);
   }
 
   function paintDynamicBloom() {
@@ -5284,8 +5487,8 @@
 
   function freshPlayer() {
     return {
-      x: (45 + 0.5) * TILE,
-      y: (40 + 0.5) * TILE,
+      x: (9 + 0.5) * TILE,
+      y: (4 + 0.5) * TILE,
       hp: 240,
       maxHp: 240,
       level: 1,
@@ -5717,6 +5920,7 @@
     }
     shake = Math.max(0, shake - dt * 14);
     updateCamera(dt);
+    if (player) streamAround(player.x, player.y);
     fxFrame++;
     if (!hidden) {
       updateAmbience(dt);
