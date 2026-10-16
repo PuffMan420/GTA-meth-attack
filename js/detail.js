@@ -66,8 +66,10 @@
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
-    c.worldW = W / 2;
-    c.worldH = H / 2;
+    // Normal people are 22 world px tall (was 24). Width keeps the same shape.
+    // The boss uses the big canvas and stays 36 tall.
+    c.worldW = big ? W / 2 : 16 * (22 / 24);
+    c.worldH = big ? H / 2 : 22;
     const g = c.getContext('2d');
     const f = frame % 8;
     const swing = [0, 2, 4, 2, 0, -2, -4, -2][f];
