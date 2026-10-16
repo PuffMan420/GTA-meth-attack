@@ -4336,7 +4336,8 @@
 
   // One ground-floor door, centered. Banded facades fill the rest of that
   // row with the plain wall and every storey above it with the window piece.
-  // Mack, lagerlokal, and nattklubb stamp the whole v5 wall once.
+  // A whole v5 wall (nightclub, warehouse, gas station) is stamped once at
+  // storey scale. Storeys above it are the window piece; the sides are plain.
   function paintFacade(wall, edge, rise) {
     const door = wall.door;
     const dw = door.tileW;
@@ -4346,6 +4347,7 @@
     ctx.imageSmoothingQuality = 'high';
     if (wall.whole) {
       if (wall.plain) fillTiled(wall.plain, 0, 0, edge, rise, dx, 0);
+      if (wall.win && rise > dh) fillTiled(wall.win, 0, dh, edge, rise - dh, dx, dh);
       ctx.drawImage(door, dx, 0, dw, dh);
       return;
     }

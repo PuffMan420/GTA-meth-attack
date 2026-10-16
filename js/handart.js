@@ -26,15 +26,17 @@
     'hus_parkeringshus',
   ];
   // ground is [g, a, b]: source pixels from the bottom. The ground band is
-  // g tall and one window storey spans (b - a). Mack, lagerlokal, and
-  // nattklubb have no storey bands; the whole v5 wall is one centered piece.
+  // g tall and one window storey spans (b - a). doorPx is the entrance
+  // height in the v5 wall when that wall was fitted to the full building.
+  // The whole picture is then scaled so the entrance is one storey.
+  // Mack's entrance is already about one storey, so it has no doorPx.
   var buildingStyle = {
     hus_tegeltak: { lean: 0.34, ground: [200, 200, 400] },
     hus_lagenheter: { lean: 0.48, ground: [115, 191, 266] },
     hus_horn_affar: { lean: 0.4, ground: [250, 250, 408] },
     hus_kontor_skrapa: { lean: 0.64, ground: [95, 197, 255] },
-    hus_lagerlokal: { lean: 0.36 },
-    hus_nattklubb: { lean: 0.56 },
+    hus_lagerlokal: { lean: 0.36, doorPx: 96 },
+    hus_nattklubb: { lean: 0.56, doorPx: 108 },
     hus_mack: { lean: 0.3 },
     hus_sjukhus: { lean: 0.52, ground: [75, 120, 165] },
     hus_polis: { lean: 0.32, ground: [150, 150, 240] },
@@ -91,17 +93,26 @@
     return c;
   }
 
-  // ground null: draw the whole v5 wall once. Otherwise the door storey is
+  // No ground band: draw the whole v5 wall once, at storey scale when the
+  // entrance was stretched to the building. Otherwise the door storey is
   // the source ground band scaled by 52/(b-a), shown once.
-  function prepWall(wallImg, plainImg, winImg, ground) {
+  function prepWall(wallImg, plainImg, winImg, style) {
+    var ground = style.ground || null;
     var plain = prepPiece(plainImg);
+    var win = prepPiece(winImg);
     if (!ground) {
+      var face = prepPiece(wallImg);
+      if (style.doorPx) {
+        var scale = STOREY_PX / style.doorPx;
+        face.tileW *= scale;
+        face.tileH *= scale;
+      }
       return {
         whole: true,
-        door: prepPiece(wallImg),
+        door: face,
         plain: plain,
-        win: null,
-        groundH: 0,
+        win: win,
+        groundH: face.tileH,
       };
     }
     var groundPx = ground[0] * STOREY_PX / (ground[2] - ground[1]);
@@ -112,7 +123,7 @@
       whole: false,
       door: door,
       plain: plain,
-      win: prepPiece(winImg),
+      win: win,
       groundH: groundPx / 2,
     };
   }
@@ -198,7 +209,7 @@
         load('assets/sprites/' + name + '_fonster.png'),
       ]).then(function (pair) {
         var roof = prepRoof(pair[0]);
-        var wall = prepWall(pair[1], pair[2], pair[3], style.ground || null);
+        var wall = prepWall(pair[1], pair[2], pair[3], style);
         buildingSlots[index] = {
           name: name,
           img: roof,
