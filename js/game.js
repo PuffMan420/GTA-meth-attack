@@ -4556,6 +4556,22 @@
     ctx.fillRect(x0 + 12, y0 + 16, fw + 8, fh + 10);
   }
 
+  function drawFittedRoof(img, x, y, fw, fh) {
+    if (!img || fw < 1 || fh < 1) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const iw = img.width || 1;
+    const ih = img.height || 1;
+    if (Math.max(fw, fh) > Math.min(fw, fh) * 1.08) {
+      const scale = Math.min(fw / iw, fh / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      ctx.drawImage(img, x + (fw - dw) / 2, y + (fh - dh) / 2, dw, dh);
+      return;
+    }
+    ctx.drawImage(img, x, y, fw, fh);
+  }
+
   function drawHandBlock(pr) {
     const cx = cam.x + view.w / 2;
     const cy = cam.y + view.h / 2;
@@ -4600,12 +4616,10 @@
     }
     // Same size as the footprint, shifted by the full lean, so each roof
     // edge is the top of the wall that rose from the matching ground edge.
-    const roof = pr.roof;
-    const tileW = (roof && roof.tileW) || fw;
-    const tileH = (roof && roof.tileH) || fh;
+    // The whole roof picture is drawn once into that quad.
     const roofX = x0 + ox - cam.x;
     const roofY = y0 + oy - cam.y;
-    fillTiled(roof, roofX, roofY, fw, fh, roofX + (fw - tileW) / 2, roofY + (fh - tileH) / 2);
+    drawFittedRoof(pr.roof, roofX, roofY, fw, fh);
     ctx.restore();
   }
 
