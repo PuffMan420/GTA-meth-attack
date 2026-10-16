@@ -1999,16 +1999,14 @@
     const sw = Math.max(1, window.innerWidth || STAGE_W);
     const sh = Math.max(1, window.innerHeight || STAGE_H);
     const desktop = sw >= 1100;
-    // Same zoom as the old 1280x720 desktop view (pixel 4, then /1.2 and /1.42),
-    // grown with the window height so characters keep their share of the screen.
-    // The canvas is the window, one backing pixel per device pixel, so the
-    // picture is not stretched. A wider window shows more city sideways.
+    // Paint into at most 1280x720, then CSS-scale that bitmap to the window.
+    // devicePixelRatio is ignored so a retina fullscreen does not render 4x pixels.
+    // Zoom still follows the window height, so characters keep their share of the screen.
     const pixel = 4 / 1.2 / 1.42;
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const cssPerWorld = pixel * (sh / STAGE_H);
-    const bw = Math.max(1, Math.round(sw * dpr));
-    const bh = Math.max(1, Math.round(sh * dpr));
-    drawScale = (bh / sh) * cssPerWorld;
+    const fit = Math.min(1, STAGE_W / sw, STAGE_H / sh);
+    const bw = Math.max(1, Math.round(sw * fit));
+    const bh = Math.max(1, Math.round(sh * fit));
+    drawScale = pixel * (bh / STAGE_H);
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw;
       canvas.height = bh;
@@ -4677,7 +4675,8 @@
       if (g.alive && onScreen(g.x, g.y, 24)) queue.push(g.y, i, 1);
     }
     for (let i = 0; i < enemies.length; i++) {
-      if (enemies[i].alive || enemies[i].dying > 0) queue.push(enemies[i].y, i, 2);
+      const e = enemies[i];
+      if ((e.alive || e.dying > 0) && onScreen(e.x, e.y, 48)) queue.push(e.y, i, 2);
     }
     if (player) queue.push(player.y, 0, 3);
     for (let i = 0; i < folk.length; i++) {
