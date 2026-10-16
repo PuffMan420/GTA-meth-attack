@@ -4579,10 +4579,6 @@
     const maxShiftY = fh * 0.3;
     ox = Math.max(-maxShiftX, Math.min(maxShiftX, ox));
     oy = Math.max(-maxShiftY, Math.min(maxShiftY, oy));
-    const roofW = Math.max(16, fw - Math.abs(ox));
-    const roofH = Math.max(16, fh - Math.abs(oy));
-    const rx = x0 + (ox > 0 ? ox : 0);
-    const ry = y0 + (oy > 0 ? oy : 0);
     const edges = [
       { x0: x0, y0: y1, x1: x1, y1: y1, nx: 0, ny: 1 },
       { x0: x1, y0: y1, x1: x1, y1: y0, nx: 1, ny: 0 },
@@ -4597,20 +4593,19 @@
     }
     faces.sort((a, b) => a.facing - b.facing);
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(x0 - cam.x, y0 - cam.y, fw, fh);
-    ctx.clip();
     for (let i = 0; i < faces.length; i++) {
       const e = faces[i].e;
       const wall = i === faces.length - 1 ? pr.wallFront : pr.wallSide;
       if (wall) drawWallFace(e.x0, e.y0, e.x1, e.y1, ox, oy, wall);
     }
+    // Same size as the footprint, shifted by the full lean, so each roof
+    // edge is the top of the wall that rose from the matching ground edge.
     const roof = pr.roof;
-    const tileW = (roof && roof.tileW) || roofW;
-    const tileH = (roof && roof.tileH) || roofH;
-    const roofX = rx - cam.x;
-    const roofY = ry - cam.y;
-    fillTiled(roof, roofX, roofY, roofW, roofH, roofX + (roofW - tileW) / 2, roofY + (roofH - tileH) / 2);
+    const tileW = (roof && roof.tileW) || fw;
+    const tileH = (roof && roof.tileH) || fh;
+    const roofX = x0 + ox - cam.x;
+    const roofY = y0 + oy - cam.y;
+    fillTiled(roof, roofX, roofY, fw, fh, roofX + (fw - tileW) / 2, roofY + (fh - tileH) / 2);
     ctx.restore();
   }
 
