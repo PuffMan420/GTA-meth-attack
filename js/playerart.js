@@ -15,11 +15,16 @@
     var c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
-    // Same visible height as a normal person. Their sprite is 22 world px on a
-    // 48px canvas, and the painted body fills 46 of those rows. This picture
-    // is opaque edge to edge, so its world height is that visible span.
-    c.worldH = 22 * (46 / 48);
-    c.worldW = c.worldH * (img.width / img.height);
+    // Normal people paint about 11.92 by 21.08 world px (22px sprite, 26 of 32
+    // columns and 46 of 48 rows). This picture's solid torso is 179/209 of the
+    // frame, so the world box has to be wider than the NPC sprite or he stays
+    // narrow. Then 6.5% larger than those people, in both width and height.
+    var npcW = (26 / 32) * (16 * (22 / 24));
+    var npcH = (46 / 48) * 22;
+    var bump = 1.065;
+    var torso = 179 / 209;
+    c.worldH = npcH * bump;
+    c.worldW = (npcW * bump) / torso;
     c.hand = true;
     var g = c.getContext('2d');
     g.drawImage(img, 0, 0);
