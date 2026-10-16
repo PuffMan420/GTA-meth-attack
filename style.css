@@ -15,7 +15,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #07060b;
+  background: #000;
   color: var(--paper);
   font-family: "Courier New", ui-monospace, Menlo, monospace;
 }
@@ -31,10 +31,10 @@ body {
 }
 
 #stage {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  flex: none;
   overflow: hidden;
-  background: #07060b;
+  background: #100e16;
 }
 
 #stick {
