@@ -15,8 +15,8 @@
     var c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
-    // About a third of a car's length. The painting includes its own shadow.
-    c.worldH = CAR_LEN / 3;
+    // A little larger than a third of a car (about 18%). The painting includes its own shadow.
+    c.worldH = (CAR_LEN / 3) * 1.18;
     c.worldW = c.worldH * (img.width / img.height);
     c.hand = true;
     var g = c.getContext('2d');
