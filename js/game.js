@@ -1999,21 +1999,16 @@
     const sw = Math.max(1, window.innerWidth || STAGE_W);
     const sh = Math.max(1, window.innerHeight || STAGE_H);
     const desktop = sw >= 1100;
-    let w;
-    let h;
-    if (desktop) {
-      // Same desktop zoom as before: pixel 4, then /1.2 and /1.42.
-      const pixel = 4 / 1.2 / 1.42;
-      w = Math.floor(STAGE_W / pixel);
-      h = Math.floor(STAGE_H / pixel);
-      drawScale = Math.max(1, Math.round(pixel));
-    } else {
-      drawScale = 2;
-      w = Math.max(160, Math.floor(sw / drawScale));
-      h = Math.max(160, Math.floor(sh / drawScale));
-    }
-    const bw = w * drawScale;
-    const bh = h * drawScale;
+    // Same zoom as the old 1280x720 desktop view (pixel 4, then /1.2 and /1.42),
+    // grown with the window height so characters keep their share of the screen.
+    // The canvas is the window, one backing pixel per device pixel, so the
+    // picture is not stretched. A wider window shows more city sideways.
+    const pixel = 4 / 1.2 / 1.42;
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const cssPerWorld = pixel * (sh / STAGE_H);
+    const bw = Math.max(1, Math.round(sw * dpr));
+    const bh = Math.max(1, Math.round(sh * dpr));
+    drawScale = (bh / sh) * cssPerWorld;
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw;
       canvas.height = bh;
@@ -2026,25 +2021,16 @@
       dofCanvas = null;
       dofGrad = null;
     }
-    view.w = w;
-    view.h = h;
+    view.w = bw / drawScale;
+    view.h = bh / drawScale;
     ctx.imageSmoothingEnabled = false;
-    if (!stage) return;
-    if (desktop) {
-      stage.style.width = '';
-      stage.style.height = '';
-      canvas.style.width = '';
-      canvas.style.height = '';
-      const fit = Math.min(sw / STAGE_W, sh / STAGE_H);
-      const scale = fit >= 1 ? Math.max(1, Math.floor(fit)) : fit;
-      stage.style.transform = 'scale(' + scale + ')';
-    } else {
+    if (stage) {
       stage.style.transform = 'none';
       stage.style.width = sw + 'px';
       stage.style.height = sh + 'px';
-      canvas.style.width = sw + 'px';
-      canvas.style.height = sh + 'px';
     }
+    canvas.style.width = sw + 'px';
+    canvas.style.height = sh + 'px';
     if (stickEl) stickEl.hidden = desktop;
   }
 
